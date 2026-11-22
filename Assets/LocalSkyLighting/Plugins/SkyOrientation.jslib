@@ -51,10 +51,10 @@ mergeInto(LibraryManager.library, {
                 button.hidden = true;
                 hint.textContent = 'Waiting for motion data…';
                 state.timer = setTimeout(function () {
-                    if (!state.sample) hint.textContent = 'No motion data. North / South previews still work.';
+                    if (!state.sample) hint.textContent = 'No motion data. Level and tilt previews still work.';
                 }, 3000);
             } catch (error) {
-                hint.textContent = error.message + '. North / South previews still work.';
+                hint.textContent = error.message + '. Level and tilt previews still work.';
             }
         };
         align.onclick = function () {

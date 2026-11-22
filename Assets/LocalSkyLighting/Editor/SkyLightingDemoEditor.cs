@@ -48,14 +48,8 @@ namespace LocalSkyLighting {
             string output = Environment.GetEnvironmentVariable("LOCAL_SKY_CAPTURE_DIR") ?? Path.GetFullPath("Temp");
             Directory.CreateDirectory(output);
             var request = new UniversalRenderPipeline.SingleCameraRequest { destination = target };
-            Vector3 world = SolarDirection.FromLocation(35.6762, 139.6503, new DateTimeOffset(2026, 9, 22, 6, 0, 0, TimeSpan.Zero));
-            Vector3 north = PhoneOrientation.ToScene(PhoneOrientation.ToWorld(0, 16, 0), world);
-            Vector3 south = PhoneOrientation.ToScene(PhoneOrientation.ToWorld(-180, 16, 0), world);
-            if (north.x >= 0 || south.x <= 0 || north.z >= 0 || south.z >= 0)
-                throw new InvalidOperationException("Expected westward sun on opposite sides of the plate, above it in both cases.");
-            Debug.Log($"Sun E/N/U {world}; north preview {north}; south preview {south}");
-            foreach (var (heading, name) in new[] { (0f, "north"), (180f, "south") }) {
-                demo.SetHeading(heading);
+            foreach (var (tilted, name) in new[] { (false, "level"), (true, "tilted") }) {
+                demo.SetPreview(tilted);
                 RenderPipeline.SubmitRenderRequest(camera, request);
                 RenderTexture.active = target;
                 image.ReadPixels(new Rect(0, 0, 640, 720), 0, 0);
@@ -69,7 +63,7 @@ namespace LocalSkyLighting {
 
         #region Constants
         private const string AppUiTextMatePath = "Packages/com.unity.dt.app-ui/Runtime/Core/Platform/WebGL/Plugins/libAppUITextMateLib.a";
-        private const string ScenePath = "Assets/Scenes/SkyLightingDemo.unity";
+        private const string ScenePath = "Assets/Scenes/CopperMaterialDemo.unity";
         #endregion
     }
 }

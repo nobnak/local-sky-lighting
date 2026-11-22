@@ -10,6 +10,7 @@ namespace LocalSkyLighting {
         [SerializeField] private Light sun;
         [SerializeField] private Camera view;
         [SerializeField] private UIDocument document;
+        [SerializeField] private string materialName;
 
         private Vector3 sunWorld;
         private Label source;
@@ -26,7 +27,7 @@ namespace LocalSkyLighting {
 
         private void OnEnable() {
             BuildControls();
-            SetHeading(0);
+            SetPreview(false);
 #if UNITY_WEBGL && !UNITY_EDITOR
             useMotion = true;
             alignment = 0;
@@ -89,6 +90,7 @@ namespace LocalSkyLighting {
             title.style.fontSize = 23;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             root.Add(title);
+            if (!string.IsNullOrEmpty(materialName)) root.Add(new Label(materialName));
             root.Add(new Label("TOKYO  /  22 SEP 2026  /  15:00 JST"));
             source = new Label();
             root.Add(source);
@@ -97,8 +99,8 @@ namespace LocalSkyLighting {
             row.style.flexDirection = FlexDirection.Row;
             row.style.marginTop = 8;
             root.Add(row);
-            AddButton(row, "North", () => SetHeading(0));
-            AddButton(row, "South", () => SetHeading(180));
+            AddButton(row, "Level", () => SetPreview(false));
+            AddButton(row, "Tilt toward sun", () => SetPreview(true));
 #if UNITY_WEBGL && !UNITY_EDITOR
             AddButton(row, "Live motion", () => useMotion = true);
 #endif
@@ -121,19 +123,20 @@ namespace LocalSkyLighting {
         }
 
         #region Public interface
-        public void SetHeading(float heading) {
+        public void SetPreview(bool tilted) {
 #if UNITY_WEBGL && !UNITY_EDITOR
             useMotion = false;
 #endif
             sunWorld = SolarDirection.FromLocation(35.6762, 139.6503, ExampleTime);
-            SetSource(heading == 0 ? "NORTH  /  SIMULATED" : "SOUTH  /  SIMULATED");
-            AimSun(PhoneOrientation.ToWorld(-heading, 16, 0));
+            SetSource(tilted ? "TILTED TOWARD SUN  /  SIMULATED" : "LEVEL  /  SIMULATED");
+            Vector3 axis = Vector3.Cross(Vector3.forward, sunWorld);
+            AimSun(tilted ? Quaternion.AngleAxis(50, axis) : Quaternion.identity);
         }
         #endregion
 
         private void AimSun(Quaternion pose) {
-            Vector3 direction = PhoneOrientation.ToScene(pose, sunWorld);
-            sun.transform.rotation = Quaternion.LookRotation(-direction);
+            Vector3 direction = PhoneOrientation.ToView(pose, sunWorld);
+            sun.transform.rotation = Quaternion.LookRotation(-view.transform.TransformDirection(direction), view.transform.up);
         }
 
         #region Constants and native interface
