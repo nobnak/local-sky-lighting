@@ -63,7 +63,7 @@ namespace LocalSkyLighting {
 
         #region Constants
         private const string AppUiTextMatePath = "Packages/com.unity.dt.app-ui/Runtime/Core/Platform/WebGL/Plugins/libAppUITextMateLib.a";
-        private const string ScenePath = "Assets/Scenes/CopperMaterialDemo.unity";
+        private const string ScenePath = "Assets/Scenes/DiamondTreadPlateDemo.unity";
         #endregion
     }
 }
