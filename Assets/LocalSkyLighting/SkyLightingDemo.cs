@@ -11,9 +11,17 @@ namespace LocalSkyLighting {
         [SerializeField] private Camera view;
         [SerializeField] private UIDocument document;
         [SerializeField] private string materialName;
+        [SerializeField] private Transform materialRig;
+        [SerializeField] private Cubemap hdrReflection;
+        [SerializeField] private Cubemap uniformReflection;
+        [SerializeField] private float hdrReflectionIntensity = 1;
 
         private Vector3 sunWorld;
         private Label source;
+        private Button reflectionButton;
+        private Texture previousReflection;
+        private float previousReflectionIntensity;
+        private bool useHdrReflection;
 #if UNITY_WEBGL && !UNITY_EDITOR
         private bool useMotion;
         private readonly float[] sample = new float[6];
@@ -25,7 +33,12 @@ namespace LocalSkyLighting {
         private bool compassReady;
 #endif
 
+        private bool HasReflectionComparison => hdrReflection != null && uniformReflection != null;
+
         private void OnEnable() {
+            previousReflection = RenderSettings.customReflectionTexture;
+            previousReflectionIntensity = RenderSettings.reflectionIntensity;
+            SetReflectionMode(true);
             BuildControls();
             SetPreview(false);
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -39,6 +52,12 @@ namespace LocalSkyLighting {
         }
 
         private void OnDisable() {
+            if (HasReflectionComparison && (RenderSettings.customReflectionTexture == hdrReflection
+                || RenderSettings.customReflectionTexture == uniformReflection)) {
+                RenderSettings.customReflectionTexture = previousReflection;
+                RenderSettings.reflectionIntensity = previousReflectionIntensity;
+            }
+            reflectionButton = null;
 #if UNITY_WEBGL && !UNITY_EDITOR
             StopLocalSkyMotion();
 #endif
@@ -72,7 +91,7 @@ namespace LocalSkyLighting {
             }
 
             float offset = aligned ? northOffset : absolute ? 0f : compassOffset;
-            AimSun(Quaternion.AngleAxis(offset, Vector3.forward) * pose);
+            ApplyPose(Quaternion.AngleAxis(offset, Vector3.forward) * pose);
             SetSource(aligned ? "LIVE  /  NORTH ALIGNED" : "LIVE  /  COMPASS");
 #endif
         }
@@ -104,9 +123,18 @@ namespace LocalSkyLighting {
 #if UNITY_WEBGL && !UNITY_EDITOR
             AddButton(row, "Live motion", () => useMotion = true);
 #endif
+            if (!HasReflectionComparison) return;
+
+            var reflectionRow = new VisualElement();
+            reflectionRow.style.flexDirection = FlexDirection.Row;
+            reflectionRow.style.marginTop = 8;
+            root.Add(reflectionRow);
+            AddButton(reflectionRow, "Turn 180°", () => SetPreview(true, opposite: true));
+            reflectionButton = AddButton(reflectionRow, ReflectionLabel(), () => SetReflectionMode(!useHdrReflection));
+            reflectionButton.style.minWidth = 134;
         }
 
-        private static void AddButton(VisualElement row, string caption, Action clicked) {
+        private static Button AddButton(VisualElement row, string caption, Action clicked) {
             var button = new Button(clicked) { text = caption };
             button.style.backgroundColor = (Color)new Color32(230, 217, 187, 255);
             button.style.color = (Color)new Color32(39, 33, 24, 255);
@@ -116,6 +144,7 @@ namespace LocalSkyLighting {
             button.style.minWidth = 82;
             button.style.unityTextAlign = TextAnchor.MiddleCenter;
             row.Add(button);
+            return button;
         }
 
         private void SetSource(string caption) {
@@ -123,18 +152,39 @@ namespace LocalSkyLighting {
         }
 
         #region Public interface
-        public void SetPreview(bool tilted) {
+        public void SetPreview(bool tilted, bool opposite = false) {
 #if UNITY_WEBGL && !UNITY_EDITOR
             useMotion = false;
 #endif
             sunWorld = SolarDirection.FromLocation(35.6762, 139.6503, ExampleTime);
-            SetSource(tilted ? "TILTED TOWARD SUN  /  SIMULATED" : "LEVEL  /  SIMULATED");
+            SetSource(tilted ? (opposite ? "TURNED 180°  /  SIMULATED" : "TILTED TOWARD SUN  /  SIMULATED") : "LEVEL  /  SIMULATED");
             Vector3 axis = Vector3.Cross(Vector3.forward, sunWorld);
-            AimSun(tilted ? Quaternion.AngleAxis(50, axis) : Quaternion.identity);
+            Quaternion pose = tilted ? Quaternion.AngleAxis(50, axis) : Quaternion.identity;
+            if (tilted && opposite) pose = Quaternion.AngleAxis(180, Vector3.forward) * pose;
+            if (materialRig != null)
+                sun.transform.rotation = Quaternion.LookRotation(-PhoneOrientation.ToUnityWorld(sunWorld));
+            ApplyPose(pose);
+        }
+
+        public void SetReflectionMode(bool hdr) {
+            if (!HasReflectionComparison) return;
+            useHdrReflection = hdr;
+            RenderSettings.customReflectionTexture = hdr ? hdrReflection : uniformReflection;
+            RenderSettings.reflectionIntensity = hdr ? hdrReflectionIntensity : 1;
+            if (reflectionButton != null) reflectionButton.text = ReflectionLabel();
         }
         #endregion
 
-        private void AimSun(Quaternion pose) {
+        private string ReflectionLabel() => useHdrReflection ? "HDR sky" : "Uniform reflection";
+
+        private void ApplyPose(Quaternion pose) {
+            if (materialRig != null) {
+                materialRig.rotation = Quaternion.LookRotation(
+                    PhoneOrientation.ToUnityWorld(pose * Vector3.up),
+                    PhoneOrientation.ToUnityWorld(pose * Vector3.forward));
+                return;
+            }
+
             Vector3 direction = PhoneOrientation.ToView(pose, sunWorld);
             sun.transform.rotation = Quaternion.LookRotation(-view.transform.TransformDirection(direction), view.transform.up);
         }

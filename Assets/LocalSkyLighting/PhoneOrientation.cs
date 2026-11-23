@@ -14,6 +14,9 @@ namespace LocalSkyLighting {
             return Mathf.Atan2(top.x, top.y) * Mathf.Rad2Deg;
         }
 
+        public static Vector3 ToUnityWorld(Vector3 eastNorthUp) =>
+            new Vector3(eastNorthUp.x, eastNorthUp.z, eastNorthUp.y);
+
         public static Vector3 ToView(Quaternion pose, Vector3 worldDirection) {
             Vector3 phone = Quaternion.Inverse(pose) * worldDirection;
             // Unity camera space uses +Z into the scene, opposite the screen normal.

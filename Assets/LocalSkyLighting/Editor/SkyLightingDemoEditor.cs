@@ -43,19 +43,34 @@ namespace LocalSkyLighting {
             EditorSceneManager.OpenScene(ScenePath);
             var demo = Object.FindAnyObjectByType<SkyLightingDemo>();
             var camera = Object.FindAnyObjectByType<Camera>();
+            var sun = Object.FindAnyObjectByType<Light>();
+            bool initialSun = sun.enabled;
             var target = new RenderTexture(640, 720, 24);
             var image = new Texture2D(640, 720, TextureFormat.RGB24, false);
             string output = Environment.GetEnvironmentVariable("LOCAL_SKY_CAPTURE_DIR") ?? Path.GetFullPath("Temp");
             Directory.CreateDirectory(output);
             var request = new UniversalRenderPipeline.SingleCameraRequest { destination = target };
-            foreach (var (tilted, name) in new[] { (false, "level"), (true, "tilted") }) {
-                demo.SetPreview(tilted);
+            foreach (var (tilted, opposite, hdr, sunlight, name) in new[] {
+                (false, false, true, true, "level-hdr"),
+                (true, false, false, true, "tilted-uniform"),
+                (true, false, true, true, "tilted-hdr"),
+                (true, true, false, true, "opposite-uniform"),
+                (true, true, true, true, "opposite-hdr"),
+                (true, false, true, false, "sky-only-toward"),
+                (true, true, true, false, "sky-only-opposite")
+            }) {
+                sun.enabled = sunlight;
+                demo.SetReflectionMode(hdr);
+                demo.SetPreview(tilted, opposite);
                 RenderPipeline.SubmitRenderRequest(camera, request);
                 RenderTexture.active = target;
                 image.ReadPixels(new Rect(0, 0, 640, 720), 0, 0);
                 image.Apply();
                 File.WriteAllBytes(Path.Combine(output, $"sky-{name}.png"), image.EncodeToPNG());
             }
+            sun.enabled = initialSun;
+            demo.SetReflectionMode(true);
+            demo.SetPreview(false);
             RenderTexture.active = null;
             Object.DestroyImmediate(target);
             Object.DestroyImmediate(image);
@@ -63,7 +78,7 @@ namespace LocalSkyLighting {
 
         #region Constants
         private const string AppUiTextMatePath = "Packages/com.unity.dt.app-ui/Runtime/Core/Platform/WebGL/Plugins/libAppUITextMateLib.a";
-        private const string ScenePath = "Assets/Scenes/DiamondTreadPlateDemo.unity";
+        private const string ScenePath = "Assets/Scenes/HdrTreadPlateDemo.unity";
         #endregion
     }
 }
