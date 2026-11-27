@@ -3,8 +3,19 @@ using UnityEngine;
 using UnityEngine.Scripting;
 
 namespace LocalSkyLighting {
+    [ExecuteAlways]
     public sealed class PlateLightStudy : MonoBehaviour {
-        [SerializeField] Texture2D[] atlases;
+        [SerializeField] MeshRenderer plate;
+        [SerializeField] Camera plateCamera;
+        [SerializeField] AreaLight[] lights;
+
+        readonly Vector4[] positions = new Vector4[MaxLights];
+        readonly Vector4[] rights = new Vector4[MaxLights];
+        readonly Vector4[] ups = new Vector4[MaxLights];
+        readonly Vector4[] forwards = new Vector4[MaxLights];
+        readonly Vector4[] radiances = new Vector4[MaxLights];
+        MaterialPropertyBlock properties;
+        bool lightingDirty;
 
         int lighting;
         Vector2 tilt;
@@ -14,51 +25,47 @@ namespace LocalSkyLighting {
         float screenAngle;
 
         #region Unity lifecycle
-        void OnGUI() {
-            if (Event.current.type != EventType.Repaint || atlases == null || lighting >= atlases.Length) return;
-            var atlas = atlases[lighting];
-            if (atlas == null) return;
+        void OnEnable() {
+            properties = new MaterialPropertyBlock();
+            lightingDirty = true;
+        }
 
-            var aspect = (float)atlas.width / atlas.height;
-            var width = Mathf.Min(Screen.width, Screen.height * aspect);
-            var height = width / aspect;
-            var viewport = new Rect((Screen.width - width) * .5f, (Screen.height - height) * .5f, width, height);
-            var grid = (tilt / TiltLimit + Vector2.one) * Center;
-            var x = Mathf.Min(Mathf.FloorToInt(grid.x), Side - 2);
-            var y = Mathf.Min(Mathf.FloorToInt(grid.y), Side - 2);
-            var dx = grid.x - x;
-            var dy = grid.y - y;
+        void OnValidate() => lightingDirty = true;
 
-            var tint = GUI.color;
-            var weight = 0f;
-            DrawFrame(viewport, atlas, x, y, (1f - dx) * (1f - dy), ref weight);
-            DrawFrame(viewport, atlas, x + 1, y, dx * (1f - dy), ref weight);
-            DrawFrame(viewport, atlas, x, y + 1, (1f - dx) * dy, ref weight);
-            DrawFrame(viewport, atlas, x + 1, y + 1, dx * dy, ref weight);
-            GUI.color = tint;
+        void LateUpdate() {
+            if (plateCamera != null) plateCamera.orthographicSize = 3.1f / Mathf.Min(plateCamera.aspect, 640f / 382f);
+            if (!lightingDirty || plate == null || lights == null) return;
+            UpdateLights();
+            lightingDirty = false;
         }
         #endregion
 
         #region public interface
         [Preserve]
-        public void SetLighting(int value) => lighting = Mathf.Clamp(value, 0, atlases.Length - 1);
+        public void SetLighting(int value) {
+            lighting = Mathf.Clamp(value, 0, 2);
+            lightingDirty = true;
+        }
 
         [Preserve]
         public void SetManualTilt(string json) {
             var input = JsonUtility.FromJson<ManualTilt>(json);
             tilt = ClampTilt(new Vector2(input.x, input.y));
+            lightingDirty = true;
         }
 
         [Preserve]
         public void BeginMotion() {
             hasPose = false;
             tilt = Vector2.zero;
+            lightingDirty = true;
         }
 
         [Preserve]
         public void ResetTilt() {
             if (hasPose) neutralPose = phonePose;
             tilt = Vector2.zero;
+            lightingDirty = true;
         }
 
         [Preserve]
@@ -76,6 +83,7 @@ namespace LocalSkyLighting {
             var originalNormal = Quaternion.Inverse(phonePose) * (neutralPose * Vector3.forward);
             tilt = ClampTilt(new Vector2(Mathf.Atan2(originalNormal.x, originalNormal.z),
                 Mathf.Atan2(originalNormal.y, originalNormal.z)) * Mathf.Rad2Deg);
+            lightingDirty = true;
         }
         #endregion
 
@@ -83,16 +91,32 @@ namespace LocalSkyLighting {
         static Vector2 ClampTilt(Vector2 value) => new Vector2(
             Mathf.Clamp(value.x, -TiltLimit, TiltLimit), Mathf.Clamp(value.y, -TiltLimit, TiltLimit));
 
-        static void DrawFrame(Rect viewport, Texture2D atlas, int x, int y, float share, ref float weight) {
-            if (share <= 0f) return;
-            weight += share;
-            GUI.color = new Color(1f, 1f, 1f, share / weight);
-            var insetX = .5f / atlas.width;
-            var insetY = .5f / atlas.height;
-            var uv = new Rect((float)x / Side + insetX, 1f - (float)(y + 1) / Side + insetY,
-                1f / Side - 2f * insetX, 1f / Side - 2f * insetY);
-            GUI.DrawTextureWithTexCoords(viewport, atlas, uv, true);
+        void UpdateLights() {
+            var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right);
+            var count = Mathf.Min(lights.Length, MaxLights);
+            for (var i = 0; i < count; i++) {
+                var light = lights[i];
+                var scale = light.name == GoldLight ? 1f / (1 << lighting) : 1f;
+                var width = light.width * scale;
+                var height = light.height * scale;
+                var area = Mathf.Max(width * height, .0001f);
+                var radiance = light.power / (Mathf.PI * area);
+                positions[i] = rotation * light.position;
+                rights[i] = WithW(rotation * light.right, width * .5f);
+                ups[i] = WithW(rotation * light.up, height * .5f);
+                forwards[i] = rotation * light.forward;
+                radiances[i] = WithW(light.color * radiance, area);
+            }
+            properties.SetInt(LightCount, count);
+            properties.SetVectorArray(LightPosition, positions);
+            properties.SetVectorArray(LightRight, rights);
+            properties.SetVectorArray(LightUp, ups);
+            properties.SetVectorArray(LightForward, forwards);
+            properties.SetVectorArray(LightRadiance, radiances);
+            plate.SetPropertyBlock(properties);
         }
+
+        static Vector4 WithW(Vector3 value, float w) => new Vector4(value.x, value.y, value.z, w);
         #endregion
 
         #region serialized input and constants
@@ -102,8 +126,21 @@ namespace LocalSkyLighting {
         [Serializable]
         struct DevicePose { public float alpha, beta, gamma, screen; }
 
-        const int Side = 5;
-        const float Center = (Side - 1) * .5f;
+        [Serializable]
+        public struct AreaLight {
+            public string name;
+            public Vector3 position, right, up, forward, color;
+            public float power, width, height;
+        }
+
+        const int MaxLights = 9;
+        const string GoldLight = "Gold streak at lower center";
+        static readonly int LightCount = Shader.PropertyToID("_LightCount");
+        static readonly int LightPosition = Shader.PropertyToID("_LightPosition");
+        static readonly int LightRight = Shader.PropertyToID("_LightRight");
+        static readonly int LightUp = Shader.PropertyToID("_LightUp");
+        static readonly int LightForward = Shader.PropertyToID("_LightForward");
+        static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
         #endregion
     }
