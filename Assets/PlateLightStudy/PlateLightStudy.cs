@@ -41,7 +41,7 @@ namespace LocalSkyLighting {
         #region public interface
         [Preserve]
         public void SetLighting(int value) {
-            lighting = Mathf.Clamp(value, 0, 2);
+            lighting = Mathf.Clamp(value, 0, SpotAngles.Length - 1);
             lightingDirty = true;
         }
 
@@ -97,7 +97,7 @@ namespace LocalSkyLighting {
 
         void UpdateSpotlight() {
             var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right);
-            var halfAngle = 32f / (1 << lighting);
+            var halfAngle = SpotAngles[lighting] * .5f;
             var outer = Mathf.Cos(halfAngle * Mathf.Deg2Rad);
             var inner = Mathf.Cos(halfAngle * .6f * Mathf.Deg2Rad);
             var area = Mathf.Max(spotlight.width * spotlight.height, .0001f);
@@ -135,6 +135,7 @@ namespace LocalSkyLighting {
         static readonly int BeamCone = Shader.PropertyToID("_BeamCone");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
+        static readonly float[] SpotAngles = { 100f, 72f, 44f };
         #endregion
     }
 }

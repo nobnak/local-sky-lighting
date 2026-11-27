@@ -108,9 +108,10 @@ controls the orientation of the anisotropic lobe over the sharper mirror lobe.
 The shader evaluates one white spotlight with a fixed rectangular aperture and
 soft cone falloff. The editable `Gold metal color` parameter colors the metal's
 reflection. Tilt rotates the spotlight relative to the first phone sample or
-the recenter pose. Pinch changes its opening angle between 64°, 32°, and 16°,
-preserving its on-axis intensity. Drag and arrow keys provide a manual tilt
-fallback.
+the recenter pose. Pinch changes its opening angle between 100°, 72°, and 44°,
+preserving its on-axis intensity. `Environment strength` sets a dim, broad
+fill that reveals the plate outside the spotlight. Drag and arrow keys provide
+a manual tilt fallback.
 
 The `Plate Post-processing` profile applies a small Bloom before Neutral tone
 mapping for the SDR canvas. Append `&bloom=0` to the viewer URL to compare the

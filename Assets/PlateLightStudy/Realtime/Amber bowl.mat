@@ -34,6 +34,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _Anisotropy: 0.7
+    - _EnvironmentStrength: 0.18
     - _Exposure: 0.55
     - _MirrorShare: 0.74
     - _Rim: 0
