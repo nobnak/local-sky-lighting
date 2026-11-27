@@ -53,3 +53,19 @@ The output includes Previous, shaped strokes, amber body, a comparison of
 AgX and Khronos PBR Neutral, and the selected `06-final.png`. The optional
 `--sweep` renders five views of the selected setup with the lighting fixed.
 Use `--draft` to reduce resolution and samples.
+
+## Strike boundary and detail study
+
+Open the saved `reference-plate.blend` from the official-photo appearance study
+and run the same script with `--surface-study`. It preserves that scene's
+lighting, exposure, and framing. The three matched views show the current
+surface, continuous height-derived strike normals with independent shading
+masks, and the same surface with sub-strike height and polish variation.
+The saved scene retains all three materials and packs their EXR data.
+
+```powershell
+blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_reference.py -- --output C:/path/to/surface-study --surface-study --sweep
+```
+
+In this mode `--sweep` renders synchronized camera-only variations for each
+of the three materials. `--draft` is available for a quicker static comparison.

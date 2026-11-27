@@ -6,12 +6,13 @@ import sys
 
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--draft", action="store_true")
 parser.add_argument("--sweep", action="store_true")
+parser.add_argument("--surface-study", action="store_true")
 args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 root = args.output.resolve()
 root.mkdir(parents=True, exist_ok=True)
@@ -38,14 +39,38 @@ for backend in ("OPTIX", "CUDA"):
     except (RuntimeError, TypeError):
         pass
 
-def make_strike_texture():
+def smootherstep(t):
+    t = np.clip(t, 0, 1)
+    return t*t*t*(t*(6*t-15)+10)
+
+def add_tool_fragments(u, v, rng):
+    height = np.zeros_like(u)
+    polish = np.zeros_like(u)
+    for _ in range(rng.integers(3, 6)):
+        x, y = rng.uniform(-.74, .74), rng.uniform(-.75, .75)
+        length, width = rng.uniform(.21, .58), rng.uniform(.10, .29)
+        along = (u-x)/length
+        across = (v-y-.12*(u-x))/width
+        patch = np.exp(-1.8*(along*along+across*across))
+        strength = rng.uniform(-1, 1)
+        height += .00025 * patch * (strength + .32*along)
+        polish += patch * strength * .42
+    return height, polish
+
+def make_strike_texture(surface=None):
     size, extent = (1320 if args.draft else 1920), 3.24
     rng = np.random.default_rng(6481)
+    fragment_rng = np.random.default_rng(5681)
+    detail = surface == "03-detail"
     coords = np.linspace(-extent / 2, extent / 2, size, dtype=np.float32)
     x, y = np.meshgrid(coords, coords)
     channel_x = .028 * np.sin(6*x + 2*np.sin(3*y)) + .018 * np.sin(24*x - 13*y)
     channel_y = .024 * np.sin(5*y + 2*np.sin(4*x)) + .017 * np.sin(27*y + 11*x)
     coverage = np.zeros_like(x)
+    if surface:
+        height = (.0037*np.cos(6*x + .6*np.sin(3*y))
+                  + .0034*np.cos(5*y + .65*np.sin(4*x)))
+        body_mask = np.zeros_like(x)
     step_x, step_y = .079, .069
     for row, cy in enumerate(np.arange(-1.57, 1.58, step_y)):
         for cx in np.arange(-1.60, 1.61, step_x):
@@ -55,8 +80,9 @@ def make_strike_texture():
             yy = cy + .016 * math.sin(5 * cx - cy) + rng.uniform(-.021, .021)
             if cx*cx + yy*yy > 1.61**2:
                 continue
-            xs = slice(*np.searchsorted(coords, (cx-.085, cx+.085)))
-            ys = slice(*np.searchsorted(coords, (yy-.085, yy+.085)))
+            support = .105 if surface else .085
+            xs = slice(*np.searchsorted(coords, (cx-support, cx+support)))
+            ys = slice(*np.searchsorted(coords, (yy-support, yy+support)))
             dx, dy = x[ys,xs]-cx, y[ys,xs]-yy
             angle = .20 + .39*math.sin(2.5*cx-1.7*yy) + .17*math.sin(4*yy+cx) + rng.normal(0,.27)
             c, s = math.cos(angle), math.sin(angle)
@@ -68,23 +94,46 @@ def make_strike_texture():
             edge = (np.abs(u)**3.4 + np.abs(v)**3.4)**(1/3.4)
             weight = np.clip((1.10-edge)/.32,0,1)
             weight = weight*weight*(3-2*weight)
-            vein = np.sin(17*v + 2.1*np.sin(4*u+phase) + phase)
-            local_x = rng.normal(.0,.105) + .052*math.sin(5*cx+2*yy) + .041*u + .025*vein
-            local_y = rng.normal(0,.096) + .055*math.sin(4*yy-2*cx) + .064*v + .035*vein
-            channel_x[ys,xs] += weight * (local_x - channel_x[ys,xs])
-            channel_y[ys,xs] += weight * (local_y - channel_y[ys,xs])
+            tilt_x = rng.normal(.0,.105) + .052*math.sin(5*cx+2*yy)
+            tilt_y = rng.normal(0,.096) + .055*math.sin(4*yy-2*cx)
             grade = rng.uniform(.22,1)
-            coverage[ys,xs] += weight * (grade - coverage[ys,xs])
+            if surface:
+                shoulder = smootherstep((1.24-edge)/.86)
+                local_height = -.00084 - .54*(tilt_x*dx + tilt_y*dy)
+                polish = grade
+                if detail:
+                    fragments, patches = add_tool_fragments(u, v, fragment_rng)
+                    local_height = local_height + fragments
+                    polish = np.clip(grade + patches, 0, 1)
+                height[ys,xs] += shoulder*local_height
+                # Separate the slope transition, roughness, and metal-body blend.
+                inner = smootherstep((1.21-edge)/.65)
+                coverage[ys,xs] += (1-coverage[ys,xs])*inner*polish
+                broader = smootherstep((1.32-edge)/1.15)
+                body_mask[ys,xs] += (1-body_mask[ys,xs])*broader*(.47 + .45*grade)
+            else:
+                vein = np.sin(17*v + 2.1*np.sin(4*u+phase) + phase)
+                local_x = tilt_x + .041*u + .025*vein
+                local_y = tilt_y + .064*v + .035*vein
+                channel_x[ys,xs] += weight * (local_x - channel_x[ys,xs])
+                channel_y[ys,xs] += weight * (local_y - channel_y[ys,xs])
+                coverage[ys,xs] += weight * (grade - coverage[ys,xs])
+    if surface:
+        dy, dx = np.gradient(height, float(coords[1]-coords[0]))
+        channel_x, channel_y = -dx, -dy
     pixels = np.empty((size,size,4), dtype=np.float32)
     pixels[...,0] = channel_x + .5
     pixels[...,1] = channel_y + .5
     pixels[...,2] = coverage
-    pixels[...,3] = 1
-    image = bpy.data.images.new("Struck plate slope XY and polish mask", size, size, alpha=True, float_buffer=True)
+    pixels[...,3] = body_mask if surface else 1
+    name = surface or "Struck plate slope XY and polish mask"
+    image = bpy.data.images.new(name, size, size, alpha=True, float_buffer=True)
     image.colorspace_settings.name = "Non-Color"
+    if surface:
+        image.alpha_mode = "CHANNEL_PACKED"
     image.pixels.foreach_set(pixels.ravel())
     image.update()
-    image.filepath_raw = str(root / "strike-slopes.exr")
+    image.filepath_raw = str(root / (f"{surface}.exr" if surface else "strike-slopes.exr"))
     image.file_format = "OPEN_EXR"
     image.save()
     image.pack()
@@ -230,6 +279,48 @@ def replace_lighting():
 def still(filename):
     scene.render.filepath = str(root / filename)
     bpy.ops.render.render(write_still=True)
+
+def surface_study():
+    material = dish.data.materials[0]
+    camera = scene.camera
+    home = camera.location.copy()
+    focus = Vector((0, 0, .065))
+    variants = [("01-current", material)]
+    for name in ("02-boundary", "03-detail"):
+        match = material.copy()
+        match.name = name
+        tree = match.node_tree
+        tex = next(node for node in tree.nodes if node.label == "Procedural tooling slopes and mask")
+        tex.image = make_strike_texture(name)
+        mix = next(node for node in tree.nodes if node.label == "Separate body and sharp stamp contribution")
+        tree.links.new(tex.outputs["Alpha"], mix.inputs["Value"])
+        variants.append((name, match))
+        match.use_fake_user = True
+    material.use_fake_user = True
+
+    for name, match in variants:
+        dish.data.materials[0] = match
+        still(f"{name}.png")
+    scene.render.filepath = "//03-detail.png"
+    bpy.ops.wm.save_as_mainfile(filepath=str(root / "surface-study.blend"), compress=True)
+
+    if args.sweep:
+        scene.cycles.samples = 32
+        scene.render.resolution_x, scene.render.resolution_y = 760, 454
+        for name, match in variants:
+            dish.data.materials[0] = match
+            (root / name).mkdir(exist_ok=True)
+            for index in range(13):
+                yaw = math.radians(-8 + 16*index/12)
+                pitch = yaw*.62
+                rotate = Quaternion((0,0,1), yaw) @ Quaternion((1,0,0), pitch)
+                camera.location = focus + rotate @ (home-focus)
+                camera.rotation_euler = (focus-camera.location).to_track_quat("-Z", "Y").to_euler()
+                still(f"{name}/{index:02d}.png")
+
+if args.surface_study:
+    surface_study()
+    sys.exit(0)
 
 still("01-previous.png")
 maps = make_strike_texture()
