@@ -24,6 +24,10 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _ScratchDirection:
+        m_Texture: {fileID: 2800000, guid: c6ffe0b4deb89bf46842865bbfedff76, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _Surface:
         m_Texture: {fileID: 2800000, guid: 520204f15d553024ab73a1bc54e092cf, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -32,6 +36,7 @@ Material:
     m_Floats:
     - _Anisotropy: 0.34
     - _Exposure: 0.55
+    - _MirrorShare: 0.74
     - _Rim: 1
     - _RoughnessScale: 1
     - _SlopeStrength: 1

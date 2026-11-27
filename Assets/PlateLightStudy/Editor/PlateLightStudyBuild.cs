@@ -4,6 +4,8 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace LocalSkyLighting {
     public static class PlateLightStudyBuild {
@@ -68,9 +70,20 @@ namespace LocalSkyLighting {
                 importer.SaveAndReimport();
             }
             var surface = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+            var grainPath = Realtime + "/ScratchDirection.png";
+            var grainImporter = (TextureImporter)AssetImporter.GetAtPath(grainPath);
+            if (grainImporter.sRGBTexture || grainImporter.npotScale != TextureImporterNPOTScale.None ||
+                grainImporter.wrapMode != TextureWrapMode.Clamp || grainImporter.textureCompression != TextureImporterCompression.Uncompressed) {
+                grainImporter.sRGBTexture = false;
+                grainImporter.npotScale = TextureImporterNPOTScale.None;
+                grainImporter.wrapMode = TextureWrapMode.Clamp;
+                grainImporter.textureCompression = TextureImporterCompression.Uncompressed;
+                grainImporter.SaveAndReimport();
+            }
+            var grain = AssetDatabase.LoadAssetAtPath<Texture2D>(grainPath);
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(Realtime + "/PlateSurface.shader");
-            var bowl = GetMaterial("Amber bowl", shader, surface, false);
-            var rim = GetMaterial("Amber rim", shader, surface, true);
+            var bowl = GetMaterial("Amber bowl", shader, surface, grain, false);
+            var rim = GetMaterial("Amber rim", shader, surface, grain, true);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene);
             var view = new GameObject("PlateLightStudy").AddComponent<PlateLightStudy>();
@@ -85,9 +98,15 @@ namespace LocalSkyLighting {
             camera.orthographicSize = 1.85f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = Color.black;
+            camera.allowHDR = true;
+            camera.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+            var volume = new GameObject("Plate Post-processing").AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.sharedProfile = GetPostProfile();
             var serialized = new SerializedObject(view);
             serialized.FindProperty("plate").objectReferenceValue = plate;
             serialized.FindProperty("plateCamera").objectReferenceValue = camera;
+            serialized.FindProperty("postProcessing").objectReferenceValue = volume;
             var lights = serialized.FindProperty("lights");
             lights.arraySize = data.lights.Length;
             for (var i = 0; i < data.lights.Length; i++) lights.GetArrayElementAtIndex(i).boxedValue = data.lights[i];
@@ -98,7 +117,26 @@ namespace LocalSkyLighting {
                 throw new InvalidOperationException($"Could not save {ScenePath}");
         }
 
-        static Material GetMaterial(string name, Shader shader, Texture2D surface, bool isRim) {
+        static VolumeProfile GetPostProfile() {
+            var path = Realtime + "/Plate Post-processing.asset";
+            var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+            if (profile != null) return profile;
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            AssetDatabase.CreateAsset(profile, path);
+            var bloom = profile.Add<Bloom>();
+            bloom.threshold.Override(1.18f);
+            bloom.intensity.Override(.2f);
+            bloom.scatter.Override(.28f);
+            bloom.maxIterations.Override(4);
+            AssetDatabase.AddObjectToAsset(bloom, profile);
+            var tonemapping = profile.Add<Tonemapping>();
+            tonemapping.mode.Override(TonemappingMode.Neutral);
+            AssetDatabase.AddObjectToAsset(tonemapping, profile);
+            EditorUtility.SetDirty(profile);
+            return profile;
+        }
+
+        static Material GetMaterial(string name, Shader shader, Texture2D surface, Texture2D grain, bool isRim) {
             var path = Realtime + "/" + name + ".mat";
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (material == null) {
@@ -107,6 +145,7 @@ namespace LocalSkyLighting {
                 AssetDatabase.CreateAsset(material, path);
             }
             material.SetTexture("_Surface", surface);
+            material.SetTexture("_ScratchDirection", grain);
             EditorUtility.SetDirty(material);
             return material;
         }

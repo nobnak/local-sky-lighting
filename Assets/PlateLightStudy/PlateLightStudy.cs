@@ -1,12 +1,15 @@
 using System;
 using UnityEngine;
 using UnityEngine.Scripting;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace LocalSkyLighting {
     [ExecuteAlways]
     public sealed class PlateLightStudy : MonoBehaviour {
         [SerializeField] MeshRenderer plate;
         [SerializeField] Camera plateCamera;
+        [SerializeField] Volume postProcessing;
         [SerializeField] AreaLight[] lights;
 
         readonly Vector4[] positions = new Vector4[MaxLights];
@@ -14,6 +17,7 @@ namespace LocalSkyLighting {
         readonly Vector4[] ups = new Vector4[MaxLights];
         readonly Vector4[] forwards = new Vector4[MaxLights];
         readonly Vector4[] radiances = new Vector4[MaxLights];
+        readonly Vector4[] beamCones = new Vector4[MaxLights];
         MaterialPropertyBlock properties;
         bool lightingDirty;
 
@@ -45,6 +49,12 @@ namespace LocalSkyLighting {
         public void SetLighting(int value) {
             lighting = Mathf.Clamp(value, 0, 2);
             lightingDirty = true;
+        }
+
+        [Preserve]
+        public void SetBloom(int value) {
+            if (postProcessing != null && postProcessing.profile.TryGet<Bloom>(out var bloom))
+                bloom.active = value != 0;
         }
 
         [Preserve]
@@ -96,14 +106,15 @@ namespace LocalSkyLighting {
             var count = Mathf.Min(lights.Length, MaxLights);
             for (var i = 0; i < count; i++) {
                 var light = lights[i];
-                var scale = light.name == GoldLight ? 1f / (1 << lighting) : 1f;
-                var width = light.width * scale;
-                var height = light.height * scale;
-                var area = Mathf.Max(width * height, .0001f);
+                var halfAngle = light.name == GoldLight ? 32f / (1 << lighting) : 56f;
+                var outer = Mathf.Cos(halfAngle * Mathf.Deg2Rad);
+                var inner = Mathf.Cos(halfAngle * .6f * Mathf.Deg2Rad);
+                beamCones[i] = new Vector4(outer, inner, 0, 0);
+                var area = Mathf.Max(light.width * light.height, .0001f);
                 var radiance = light.power / (Mathf.PI * area);
                 positions[i] = rotation * light.position;
-                rights[i] = WithW(rotation * light.right, width * .5f);
-                ups[i] = WithW(rotation * light.up, height * .5f);
+                rights[i] = WithW(rotation * light.right, light.width * .5f);
+                ups[i] = WithW(rotation * light.up, light.height * .5f);
                 forwards[i] = rotation * light.forward;
                 radiances[i] = WithW(light.color * radiance, area);
             }
@@ -113,6 +124,7 @@ namespace LocalSkyLighting {
             properties.SetVectorArray(LightUp, ups);
             properties.SetVectorArray(LightForward, forwards);
             properties.SetVectorArray(LightRadiance, radiances);
+            properties.SetVectorArray(BeamCones, beamCones);
             plate.SetPropertyBlock(properties);
         }
 
@@ -140,6 +152,7 @@ namespace LocalSkyLighting {
         static readonly int LightRight = Shader.PropertyToID("_LightRight");
         static readonly int LightUp = Shader.PropertyToID("_LightUp");
         static readonly int LightForward = Shader.PropertyToID("_LightForward");
+        static readonly int BeamCones = Shader.PropertyToID("_BeamCones");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
         #endregion

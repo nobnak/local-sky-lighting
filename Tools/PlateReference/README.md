@@ -103,12 +103,17 @@ for the same comparison. The saved world remains active.
 Open `Assets/PlateLightStudy/PlateLightStudy.unity` to preview the fixed camera,
 bowl and rim meshes, and the editable `Amber bowl` material. Its surface map
 stores the normal slope in red and green and the polish mask in blue. The
-shader computes diffuse and specular lighting for nine rectangles every frame.
-It uses a separable approximation to the anisotropic GGX reflection footprint
-and a shared SDR tone curve. The light rig rotates relative to the first phone
-sample, or the pose at the recenter button. Pinch changes the lower-center gold
-light's width and height between 100%, 50%, and 25% at fixed power. Drag and
-arrow keys provide a manual tilt fallback.
+scratch direction map is estimated from the local surface structure and
+controls the orientation of the anisotropic lobe over the sharper mirror lobe.
+The shader evaluates nine spotlights with fixed rectangular apertures and soft
+cone falloff. Tilt rotates the rig relative to the first phone sample or the
+recenter pose. Pinch changes the lower-center gold beam's opening angle between
+64°, 32°, and 16°, preserving its on-axis intensity. Drag and arrow keys provide
+a manual tilt fallback.
+
+The `Plate Post-processing` profile applies a small Bloom before Neutral tone
+mapping for the SDR canvas. Append `&bloom=0` to the viewer URL to compare the
+same lighting and material with Bloom disabled.
 
 Export the mesh, surface map and light rig from the original Blender scene,
 then build the Unity Web viewer:
@@ -123,9 +128,9 @@ uses HTTPS and browsers that require a gesture show a permission button.
 
 ### Three.js HDR phone-tilt comparison
 
-GitHub Pages also serves `docs/plate-light-hdr/`. It uses the same fixed view
-and light sizes as the Unity viewer, with a 5×5 grid of Blender renders instead
-of Unity's live area-light shading. The HDR/SDR button compares
+GitHub Pages also serves `docs/plate-light-hdr/`. It preserves the earlier
+5×5 grid of Blender renders with three emitter sizes. The current Unity viewer
+uses live spotlight shading and varies the beam angle. The HDR/SDR button compares
 the same linear frames, scene exposure and shadow curve. Only HDR mode extends
 the high end of the highlight curve above SDR reference white. The page uses
 WebGPU's extended-range canvas when available and shows SDR on other displays,

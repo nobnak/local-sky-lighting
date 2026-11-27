@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 import bpy
+import numpy as np
 from mathutils import Quaternion, Vector
 
 
@@ -48,6 +49,36 @@ def lights(scene):
     return result
 
 
+def export_scratch_direction(image, target):
+    width, height = image.size
+    data = np.empty(width * height * 4, dtype=np.float32)
+    image.pixels.foreach_get(data)
+    surface = data.reshape(height, width, 4)
+    dy, dx = np.gradient(surface[..., :2], axis=(0, 1))
+    weight = np.clip(surface[..., 2] * 3, 0, 1)
+
+    def average(values):
+        for axis in (0, 1):
+            values = sum(np.roll(values, offset, axis) for offset in range(-3, 4)) / 7
+        return values[::2, ::2]
+
+    xx = average(np.sum(dx * dx, axis=2) * weight)
+    yy = average(np.sum(dy * dy, axis=2) * weight)
+    xy = average(np.sum(dx * dy, axis=2) * weight)
+    # Encode a line direction using the doubled angle, so opposite directions filter together.
+    denom = xx + yy + 0.00001
+    pixels = np.zeros((*xx.shape, 4), dtype=np.float32)
+    pixels[..., 0] = 0.5 - 0.5 * (xx - yy) / denom
+    pixels[..., 1] = 0.5 - xy / denom
+    pixels[..., 3] = 1
+    direction = bpy.data.images.new('Scratch direction', pixels.shape[1], pixels.shape[0])
+    direction.colorspace_settings.name = 'Non-Color'
+    direction.pixels.foreach_set(np.clip(pixels, 0, 1).ravel())
+    direction.file_format = 'PNG'
+    direction.filepath_raw = str(target)
+    direction.save()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
@@ -63,4 +94,5 @@ if __name__ == '__main__':
     scene.render.image_settings.color_mode = 'RGB'
     scene.render.image_settings.exr_codec = 'ZIP'
     image.save_render(str(out / 'Strikes.exr'), scene=scene)
+    export_scratch_direction(image, out / 'ScratchDirection.png')
     print(f'Exported {len(data["vertices"])} vertices, {len(data["lights"])} lights, {list(image.size)} surface')

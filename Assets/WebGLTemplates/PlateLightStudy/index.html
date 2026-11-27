@@ -40,7 +40,7 @@ button:disabled { opacity: .55; }
 </head>
 <body>
 <main>
-  <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーで光源サイズを調整。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
+  <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーでスポットライトの照射角を調整。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
   <output id="light-size" hidden></output>
   <p id="status" role="status">読み込み中…</p>
   <fieldset id="controls" aria-label="照明操作" disabled>
@@ -57,7 +57,7 @@ const sizeLabel = document.querySelector('#light-size');
 const sensor = window.isSecureContext ? window.DeviceOrientationEvent : undefined;
 const needsSensorGesture = typeof sensor?.requestPermission === 'function';
 const tiltLimit = 24;
-const lightSizes = [100, 50, 25];
+const beamAngles = [64, 32, 16];
 const pinchStep = 1.25;
 const touches = new Map();
 let instance;
@@ -157,11 +157,11 @@ document.querySelector('#reset').addEventListener('click', () => {
   else setManual(0, 0);
 });
 function changeLightSize(step) {
-  const next = Math.max(0, Math.min(lightSizes.length - 1, lighting + step));
+  const next = Math.max(0, Math.min(beamAngles.length - 1, lighting + step));
   if (next === lighting) return;
   lighting = next;
   call('SetLighting', lighting);
-  sizeLabel.textContent = '光源サイズ ' + lightSizes[lighting] + '%';
+  sizeLabel.textContent = '照射角 ' + beamAngles[lighting] + '°';
   sizeLabel.hidden = false;
   clearTimeout(sizeTimer);
   sizeTimer = setTimeout(() => { sizeLabel.hidden = true; }, 1000);
@@ -223,7 +223,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.0';
+const buildVersion = '2.1';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('{{{ LOADER_FILENAME }}}');
@@ -247,6 +247,7 @@ loader.onload = () => {
   }, ratio => { statusText.textContent = '読み込み中… ' + Math.round(100*ratio) + '%'; })
     .then(result => {
       instance = result;
+      if (new URLSearchParams(location.search).get('bloom') === '0') call('SetBloom', 0);
       controls.disabled = false;
       statusText.hidden = true;
       startMotion(needsSensorGesture);
