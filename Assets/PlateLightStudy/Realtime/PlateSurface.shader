@@ -8,7 +8,7 @@ Shader "Local Sky Lighting/Struck Plate" {
         _RoughnessScale ("Roughness scale", Range(0.5, 2)) = 1
         _Anisotropy ("Anisotropy", Range(0, 0.9)) = 0.7
         _EnvironmentStrength ("Environment strength", Range(0, 0.5)) = 0.18
-        _SpotHaloStrength ("Spotlight halo radiance ratio", Range(0, 0.05)) = 0.026
+        _ProjectedGlintStrength ("Projected glint strength", Range(0, 0.4)) = 0.22
         _Exposure ("Exposure multiplier", Range(0.05, 2)) = 0.55
         [Toggle] _Rim ("Rim material", Float) = 0
     }
@@ -26,7 +26,7 @@ Shader "Local Sky Lighting/Struck Plate" {
 
             sampler2D _Surface, _ScratchDirection;
             float _SlopeStrength, _RoughnessScale, _Anisotropy, _Exposure, _Rim, _MirrorShare, _EnvironmentStrength;
-            float _SpotHaloStrength;
+            float _ProjectedGlintStrength;
             float4 _MetalColor;
             float4 _LightPosition, _LightRight, _LightUp, _LightForward, _LightRadiance, _BeamCone;
 
@@ -75,6 +75,19 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float2 aligned = float2(dot(grain, _LightRight.xyz), dot(grain, _LightUp.xyz));
                 float2 weight = saturate(aligned * aligned);
                 return sqrt(lerp(axes.y * axes.y, axes.x * axes.x, weight));
+            }
+
+            float ProjectedGlint(float2 position, float3 strikeNormal, float3 grain, float3 halfDirection) {
+                // Sample a stable, oriented microfacet in each small patch of the strike.
+                float2 lattice = float2(position.x + 0.28 * position.y, position.y - 0.28 * position.x);
+                float2 facetCell = floor(lattice * float2(28, 43) + strikeNormal.xy * 3);
+                float3 hash = frac(facetCell.xyx * float3(0.1031, 0.1030, 0.0973));
+                hash += dot(hash, hash.yzx + 33.33);
+                float2 lean = (frac((hash.xx + hash.yz) * hash.zy) * 2 - 1) * float2(0.37, 0.53);
+                float2 facetSlope = grain.xy * lean.x + float2(-grain.y, grain.x) * lean.y;
+                float3 facetNormal = normalize(strikeNormal + float3(facetSlope, 0));
+                float alignment = saturate(dot(facetNormal, halfDirection));
+                return pow(alignment, 220) * lerp(0.45, 1, frac(hash.x + hash.z));
             }
 
             float4 Frag(Varyings input) : SV_Target {
@@ -127,12 +140,12 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float3 body = bodyF * _LightRadiance.rgb * RectangleSpecular(p, bodyRay, bodyAlpha, aperture);
                 float mirror = RectangleSpecular(p, strikeRay, mirrorAlpha, aperture);
                 float scratch = RectangleSpecular(p, strikeRay, ProjectScratchLobe(grain, scratchAlpha), aperture);
-                // A dim, wide apparent emitter gives more strikes a reflection from the same spotlight.
-                float2 haloAlpha = ProjectScratchLobe(grain, RoughnessAxes(0.48, _Anisotropy * confidence));
-                float3 halfDirection = normalize(lightDir + view);
-                float facetResponse = saturate(0.54 + 4 * dot(strikeNormal - bodyNormal, halfDirection));
-                float halo = RectangleSpecular(p, strikeRay, haloAlpha, aperture * 8) * lerp(0.38, 1.22, facetResponse);
-                float3 metal = strikeF * _LightRadiance.rgb * (lerp(scratch, mirror, _MirrorShare) + _SpotHaloStrength * halo);
+                // The cone masks the projected image. The facet highlight follows the illumination direction.
+                float3 projectorDirection = normalize(lerp(-_LightForward.xyz, lightDir, 0.28));
+                float3 halfDirection = normalize(projectorDirection + view);
+                float glint = ProjectedGlint(p.xy, strikeNormal, grain, halfDirection);
+                float localReflection = 0.27 * lerp(scratch, mirror, _MirrorShare);
+                float3 metal = strikeF * _LightRadiance.rgb * (localReflection + _ProjectedGlintStrength * glint);
                 float3 radiance = environment + beam * lerp(diffuse + body, metal, polished);
                 return float4(radiance * _Exposure, 1);
             }

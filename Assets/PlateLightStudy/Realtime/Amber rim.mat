@@ -38,10 +38,10 @@ Material:
     - _EnvironmentStrength: 0.18
     - _Exposure: 0.55
     - _MirrorShare: 0.74
+    - _ProjectedGlintStrength: 0.22
     - _Rim: 1
     - _RoughnessScale: 1
     - _SlopeStrength: 1
-    - _SpotHaloStrength: 0.026
     m_Colors:
     - _MetalColor: {r: 0.965, g: 0.835, b: 0.53, a: 1}
   m_BuildTextureStacks: []

@@ -105,10 +105,10 @@ bowl and rim meshes, and the editable `Amber bowl` material. Its surface map
 stores the normal slope in red and green and the polish mask in blue. The
 scratch direction map is estimated from the local surface structure and
 controls the orientation of the anisotropic lobe over the sharper mirror lobe.
-The shader evaluates one white spotlight with a compact rectangular core and
-a dimmer, broader apparent emitter for the polished strikes. Both reflections
-follow the same cone falloff. `Spotlight halo radiance ratio` controls the
-broader reflection, whose strength varies with the strike normal.
+One white spotlight applies a soft projection mask over the plate.
+The polished strikes contain small, oriented facets that reflect its light
+into the camera only near mirror alignment. `Projected glint strength`
+controls that reflection alongside the compact rectangular highlight.
 `Gold metal color` colors the metal's reflection. Tilt rotates the spotlight relative to the first phone sample or
 the recenter pose. Pinch changes its opening angle between 174°, 144°, and 118°,
 preserving its on-axis intensity. The full-strength cone is always 72% of
