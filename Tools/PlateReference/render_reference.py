@@ -12,7 +12,9 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--draft", action="store_true")
 parser.add_argument("--sweep", action="store_true")
-parser.add_argument("--surface-study", action="store_true")
+modes = parser.add_mutually_exclusive_group()
+modes.add_argument("--surface-study", action="store_true")
+modes.add_argument("--variety-study", action="store_true")
 args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 root = args.output.resolve()
 root.mkdir(parents=True, exist_ok=True)
@@ -61,6 +63,7 @@ def make_strike_texture(surface=None):
     size, extent = (1320 if args.draft else 1920), 3.24
     rng = np.random.default_rng(6481)
     fragment_rng = np.random.default_rng(5681)
+    preserve = surface == "05-preserved"
     detail = surface == "03-detail"
     coords = np.linspace(-extent / 2, extent / 2, size, dtype=np.float32)
     x, y = np.meshgrid(coords, coords)
@@ -68,9 +71,10 @@ def make_strike_texture(surface=None):
     channel_y = .024 * np.sin(5*y + 2*np.sin(4*x)) + .017 * np.sin(27*y + 11*x)
     coverage = np.zeros_like(x)
     if surface:
+        body_mask = np.zeros_like(x)
+    if surface and not preserve:
         height = (.0037*np.cos(6*x + .6*np.sin(3*y))
                   + .0034*np.cos(5*y + .65*np.sin(4*x)))
-        body_mask = np.zeros_like(x)
     step_x, step_y = .079, .069
     for row, cy in enumerate(np.arange(-1.57, 1.58, step_y)):
         for cx in np.arange(-1.60, 1.61, step_x):
@@ -97,7 +101,21 @@ def make_strike_texture(surface=None):
             tilt_x = rng.normal(.0,.105) + .052*math.sin(5*cx+2*yy)
             tilt_y = rng.normal(0,.096) + .055*math.sin(4*yy-2*cx)
             grade = rng.uniform(.22,1)
-            if surface:
+            if preserve:
+                # Keep the flatter interiors of the first version. Feather slopes,
+                # polish and material contribution over different support widths.
+                taper = smootherstep((1.22-edge)/.57)
+                polish_mask = smootherstep((1.12-edge)/.44)
+                blend_mask = smootherstep((1.23-edge-.09*v)/.64)
+                fragments, patches = add_tool_fragments(u, v, fragment_rng)
+                dy_fragment, dx_fragment = np.gradient(fragments, float(coords[1]-coords[0]))
+                sx = tilt_x + .038*u - .75*dx_fragment
+                sy = tilt_y + .052*v - .75*dy_fragment
+                channel_x[ys,xs] += taper*(sx-channel_x[ys,xs])
+                channel_y[ys,xs] += taper*(sy-channel_y[ys,xs])
+                coverage[ys,xs] += polish_mask*(np.clip(grade+patches,0,1)-coverage[ys,xs])
+                body_mask[ys,xs] += blend_mask*(.21+.77*grade-body_mask[ys,xs])
+            elif surface:
                 shoulder = smootherstep((1.24-edge)/.86)
                 local_height = -.00084 - .54*(tilt_x*dx + tilt_y*dy)
                 polish = grade
@@ -118,7 +136,7 @@ def make_strike_texture(surface=None):
                 channel_x[ys,xs] += weight * (local_x - channel_x[ys,xs])
                 channel_y[ys,xs] += weight * (local_y - channel_y[ys,xs])
                 coverage[ys,xs] += weight * (grade - coverage[ys,xs])
-    if surface:
+    if surface and not preserve:
         dy, dx = np.gradient(height, float(coords[1]-coords[0]))
         channel_x, channel_y = -dx, -dy
     pixels = np.empty((size,size,4), dtype=np.float32)
@@ -286,7 +304,8 @@ def surface_study():
     home = camera.location.copy()
     focus = Vector((0, 0, .065))
     variants = [("01-current", material)]
-    for name in ("02-boundary", "03-detail"):
+    names = ("03-detail", "05-preserved") if args.variety_study else ("02-boundary", "03-detail")
+    for name in names:
         match = material.copy()
         match.name = name
         tree = match.node_tree
@@ -301,7 +320,7 @@ def surface_study():
     for name, match in variants:
         dish.data.materials[0] = match
         still(f"{name}.png")
-    scene.render.filepath = "//03-detail.png"
+    scene.render.filepath = f"//{names[-1]}.png"
     bpy.ops.wm.save_as_mainfile(filepath=str(root / "surface-study.blend"), compress=True)
 
     if args.sweep:
@@ -318,7 +337,7 @@ def surface_study():
                 camera.rotation_euler = (focus-camera.location).to_track_quat("-Z", "Y").to_euler()
                 still(f"{name}/{index:02d}.png")
 
-if args.surface_study:
+if args.surface_study or args.variety_study:
     surface_study()
     sys.exit(0)
 

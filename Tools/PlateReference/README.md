@@ -69,3 +69,16 @@ blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1
 
 In this mode `--sweep` renders synchronized camera-only variations for each
 of the three materials. `--draft` is available for a quicker static comparison.
+
+## Varied strike faces
+
+With the same `reference-plate.blend` input, use `--variety-study` to compare the
+original material, the smooth-boundary detail material, and the varied strike
+faces. This variant preserves the original strike tilt and flatter interiors.
+Normals, polish and the body blend feather over separate widths. Short
+internal tool marks break up the reflections. All three views use the input lighting and
+exposure. The saved `surface-study.blend` opens with the varied material.
+
+```powershell
+blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_reference.py -- --output C:/path/to/variety-study --variety-study --sweep
+```
