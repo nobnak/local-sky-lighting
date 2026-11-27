@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--draft", action="store_true")
 parser.add_argument("--movie", action="store_true")
+parser.add_argument("--look-study", action="store_true")
 args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 output = args.output.resolve()
 output.mkdir(parents=True, exist_ok=True)
@@ -58,7 +59,7 @@ def principled(name, color, metallic, roughness):
     shader.inputs["Roughness"].default_value = roughness
     return material, shader
 
-def hammered(name, color, coated):
+def hammered(name, color, coated, soft=True):
     material, shader = principled(name, color, 1, 0.25)
     graph = material.node_tree
 
@@ -96,8 +97,8 @@ def hammered(name, color, coated):
     link(warp_amount, "Vector", warped, 1)
     link(warped, "Vector", cells, "Vector")
     tone = node("ShaderNodeMapRange", "Restrained roughness variation", -210, 200)
-    tone.inputs["To Min"].default_value = 0.20
-    tone.inputs["To Max"].default_value = 0.36
+    tone.inputs["To Min"].default_value = 0.07
+    tone.inputs["To Max"].default_value = 0.14
     link(cells, "Color", tone, "Value")
     link(tone, "Result", shader, "Roughness")
     radius = node("ShaderNodeVectorMath", "Protected center and darker patina near the rim", -700, 500)
@@ -137,7 +138,7 @@ def hammered(name, color, coated):
     grain.inputs["Detail"].default_value = 2
     link(mapping, "Vector", grain, "Vector")
     grain_bump = node("ShaderNodeBump", "Fine normal on each strike", 540, 35)
-    grain_bump.inputs["Strength"].default_value = 0.26
+    grain_bump.inputs["Strength"].default_value = 0.20 if soft else 0.26
     grain_bump.inputs["Distance"].default_value = 0.0036
     link(grain, "Fac", grain_bump, "Height")
     link(normal, "Vector", grain_bump, "Normal")
@@ -149,7 +150,19 @@ def hammered(name, color, coated):
         shader.inputs["Coat Roughness"].default_value = 0.24
         link(geometry, "Normal", shader, "Coat Normal")
     shader.location = (740, 215)
-    graph.nodes.get("Material Output").location = (1060, 215)
+    surface = graph.nodes.get("Material Output")
+    surface.location = (1330, 215)
+    if soft:
+        satin = node("ShaderNodeBsdfPrincipled", "Broader reflection from the same alloy", 740, -350)
+        satin.inputs["Metallic"].default_value = 1
+        satin.inputs["Roughness"].default_value = 0.46
+        link(alloy, "Color", satin, "Base Color")
+        link(normal, "Vector", satin, "Normal")
+        finish = node("ShaderNodeMixShader", "Polished peaks over a broad warm reflection", 1100, 215)
+        finish.inputs[0].default_value = 0.26
+        link(shader, "BSDF", finish, 1)
+        link(satin, "BSDF", finish, 2)
+        link(finish, "Shader", surface, "Surface")
     return material
 
 def lathe(name, profile, material):
@@ -215,9 +228,22 @@ def area(name, position, color, energy, size, width=None):
 key = area("Broad left amber reflection", (-.58, 1.12, 1.51), (1, .76, .33), 29, .68, .42)
 band = area("Warm moving band", (.10, .23, 1.14), (1, .83, .43), 11, .53, .29)
 area("Soft amber upper reflection", (.13, 1.55, 1.55), (1, .57, .22), 7, .76, .50)
-area("Rose accent", (-.43, .40, 1.12), (1, .19, .30), 5.4, .35)
+rose = area("Rose accent", (-.43, .40, 1.12), (1, .19, .30), 5.4, .35)
 green = area("Soft green accent", (.48, .55, 1.24), (.36, 1, .31), 7.5, .48)
 area("Faint violet edge reflection", (1.95, 1.05, 1.23), (.49, .18, 1), 5, .57)
+
+def soften_lights():
+    # Keep a directional key and add a lower-radiance field around its reflection.
+    key.data.energy = 19
+    key.data.color = (1, .80, .25)
+    key.data.size = 0.85
+    key.data.size_y = 0.58
+    band.data.energy = 9
+    band.data.size = 0.60
+    band.data.size_y = 0.38
+    rose.data.energy = 1.6
+    green.data.energy = 3.2
+    area("Broad warm fill", (0, 1.0, 1.75), (1, .79, .30), 19, 2.35, 1.8)
 
 camera_data = bpy.data.cameras.new("Reference framing")
 camera = bpy.data.objects.new("Reference framing", camera_data)
@@ -234,15 +260,29 @@ def render_still(name):
     scene.render.filepath = str(output / name)
     bpy.ops.render.render(write_still=True)
 
+if args.look_study:
+    original = hammered("Reference polished metal", (0.67, 0.36, 0.090), True, soft=False)
+    plate.data.materials[0] = original
+    render_still("01-baseline.png")
+    plate.data.materials[0] = layered
+    render_still("02-material-only.png")
+    soften_lights()
+    plate.data.materials[0] = original
+    render_still("03-lights-only.png")
+    plate.data.materials[0] = layered
+    render_still("04-combined.png")
+    bpy.data.materials.remove(original)
+else:
+    soften_lights()
+
+plate.data.materials[0] = bronze
 render_still("A-hammered-metal.png")
 plate.data.materials[0] = layered
 render_still("B-amber-coat.png")
-plate.data.materials[0] = bronze
-scene.render.filepath = "//A-hammered-metal.png"
+scene.render.filepath = "//B-amber-coat.png"
 bpy.ops.wm.save_as_mainfile(filepath=str(output / "plate-materials.blend"))
 
 if args.movie:
-    plate.data.materials[0] = layered
     scene.render.resolution_x = 768
     scene.render.resolution_y = 458
     scene.cycles.samples = 32
