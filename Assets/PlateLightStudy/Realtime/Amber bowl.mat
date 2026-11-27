@@ -40,6 +40,7 @@ Material:
     - _Rim: 0
     - _RoughnessScale: 1
     - _SlopeStrength: 1
+    - _SpotHaloStrength: 0.026
     m_Colors:
     - _MetalColor: {r: 0.965, g: 0.835, b: 0.53, a: 1}
   m_BuildTextureStacks: []

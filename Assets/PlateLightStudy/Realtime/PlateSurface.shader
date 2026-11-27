@@ -8,6 +8,7 @@ Shader "Local Sky Lighting/Struck Plate" {
         _RoughnessScale ("Roughness scale", Range(0.5, 2)) = 1
         _Anisotropy ("Anisotropy", Range(0, 0.9)) = 0.7
         _EnvironmentStrength ("Environment strength", Range(0, 0.5)) = 0.18
+        _SpotHaloStrength ("Spotlight halo radiance ratio", Range(0, 0.05)) = 0.026
         _Exposure ("Exposure multiplier", Range(0.05, 2)) = 0.55
         [Toggle] _Rim ("Rim material", Float) = 0
     }
@@ -25,6 +26,7 @@ Shader "Local Sky Lighting/Struck Plate" {
 
             sampler2D _Surface, _ScratchDirection;
             float _SlopeStrength, _RoughnessScale, _Anisotropy, _Exposure, _Rim, _MirrorShare, _EnvironmentStrength;
+            float _SpotHaloStrength;
             float4 _MetalColor;
             float4 _LightPosition, _LightRight, _LightUp, _LightForward, _LightRadiance, _BeamCone;
 
@@ -51,14 +53,13 @@ Shader "Local Sky Lighting/Struck Plate" {
 
             // Integrate the two marginal GGX slope distributions over the light rectangle.
             // The separable footprint approximates the projected area integral.
-            float RectangleSpecular(float3 p, float3 reflection, float2 alpha) {
+            float RectangleSpecular(float3 p, float3 reflection, float2 alpha, float2 dimensions) {
                 float3 forward = _LightForward.xyz;
                 float incidence = -dot(reflection, forward);
                 float distance = dot(p - _LightPosition.xyz, forward) / max(incidence, 0.0001);
                 if (incidence <= 0 || distance <= 0) return 0;
 
                 float3 hit = p + reflection * distance - _LightPosition.xyz;
-                float2 dimensions = float2(_LightRight.w, _LightUp.w);
                 float2 center = float2(dot(hit, _LightRight.xyz), dot(hit, _LightUp.xyz));
                 float2 sigma = max(0.003, 2 * distance * alpha / sqrt(max(incidence, 0.15)));
                 float2 area = SlopeCdf((dimensions - center) / sigma) - SlopeCdf((-dimensions - center) / sigma);
@@ -122,10 +123,16 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float beam = 1 - smoothstep(_BeamCone.x, _BeamCone.y, acos(emitterCos));
                 float3 irradiance = _LightRadiance.rgb * _LightRadiance.w * emitterCos / distanceSq;
                 float3 diffuse = irradiance * saturate(dot(bodyNormal, lightDir)) * bodyColor * (1 - bodyF) / PI;
-                float3 body = bodyF * _LightRadiance.rgb * RectangleSpecular(p, bodyRay, bodyAlpha);
-                float mirror = RectangleSpecular(p, strikeRay, mirrorAlpha);
-                float scratch = RectangleSpecular(p, strikeRay, ProjectScratchLobe(grain, scratchAlpha));
-                float3 metal = strikeF * _LightRadiance.rgb * lerp(scratch, mirror, _MirrorShare);
+                float2 aperture = float2(_LightRight.w, _LightUp.w);
+                float3 body = bodyF * _LightRadiance.rgb * RectangleSpecular(p, bodyRay, bodyAlpha, aperture);
+                float mirror = RectangleSpecular(p, strikeRay, mirrorAlpha, aperture);
+                float scratch = RectangleSpecular(p, strikeRay, ProjectScratchLobe(grain, scratchAlpha), aperture);
+                // A dim, wide apparent emitter gives more strikes a reflection from the same spotlight.
+                float2 haloAlpha = ProjectScratchLobe(grain, RoughnessAxes(0.48, _Anisotropy * confidence));
+                float3 halfDirection = normalize(lightDir + view);
+                float facetResponse = saturate(0.54 + 4 * dot(strikeNormal - bodyNormal, halfDirection));
+                float halo = RectangleSpecular(p, strikeRay, haloAlpha, aperture * 8) * lerp(0.38, 1.22, facetResponse);
+                float3 metal = strikeF * _LightRadiance.rgb * (lerp(scratch, mirror, _MirrorShare) + _SpotHaloStrength * halo);
                 float3 radiance = environment + beam * lerp(diffuse + body, metal, polished);
                 return float4(radiance * _Exposure, 1);
             }
