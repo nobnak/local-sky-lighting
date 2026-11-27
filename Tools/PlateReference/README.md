@@ -37,3 +37,19 @@ Blender 4.5 applies thin-film interference to dielectrics. The thin-film
 treatment mixes a separate dielectric reflection with the metallic substrate.
 Use `--variant film-control --frames 3` for the matched dielectric comparison
 with the film disabled.
+
+## Official-photo appearance study
+
+Use the same plate scene as input. This script generates a procedural packed
+EXR of strike slopes and polish coverage, compares the surface and lighting
+changes, and saves the selected Blender scene. The official photograph is used
+as a visual reference. The Blender script generates its own material maps.
+
+```powershell
+blender -b C:/path/to/output/plate-materials.blend --python-exit-code 1 --python Tools/PlateReference/render_reference.py -- --output C:/path/to/reference-study --sweep
+```
+
+The output includes Previous, shaped strokes, amber body, a comparison of
+AgX and Khronos PBR Neutral, and the selected `06-final.png`. The optional
+`--sweep` renders five views of the selected setup with the lighting fixed.
+Use `--draft` to reduce resolution and samples.
