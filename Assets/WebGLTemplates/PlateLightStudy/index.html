@@ -57,7 +57,7 @@ const sizeLabel = document.querySelector('#light-size');
 const sensor = window.isSecureContext ? window.DeviceOrientationEvent : undefined;
 const needsSensorGesture = typeof sensor?.requestPermission === 'function';
 const tiltLimit = 24;
-const beamAngles = [100, 72, 44];
+const beamAngles = [164, 136, 112];
 const pinchStep = 1.25;
 const touches = new Map();
 let instance;
@@ -223,7 +223,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.3';
+const buildVersion = '2.4';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('{{{ LOADER_FILENAME }}}');

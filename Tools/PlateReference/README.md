@@ -108,8 +108,9 @@ controls the orientation of the anisotropic lobe over the sharper mirror lobe.
 The shader evaluates one white spotlight with a fixed rectangular aperture and
 soft cone falloff. The editable `Gold metal color` parameter colors the metal's
 reflection. Tilt rotates the spotlight relative to the first phone sample or
-the recenter pose. Pinch changes its opening angle between 100°, 72°, and 44°,
-preserving its on-axis intensity. `Environment strength` sets a dim, broad
+the recenter pose. Pinch changes its opening angle between 164°, 136°, and 112°,
+preserving its on-axis intensity. At the centered pose, the beam is at least
+half strength across approximately 100%, 86%, and 50% of the projected plate. `Environment strength` sets a dim, broad
 fill that reveals the plate outside the spotlight. Drag and arrow keys provide
 a manual tilt fallback.
 
