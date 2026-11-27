@@ -102,7 +102,10 @@ for the same comparison. The saved world remains active.
 
 The camera shows the plate face-on. Phone orientation sets a relative light
 direction from the first sensor sample, or from the pose at the recenter
-button. Dragging provides a manual fallback. Unity interpolates a five-by-five grid of frontal Blender renders over ±24° per axis. The published page presents the full-size light configuration and a minimal sensor and recenter overlay.
+button. Dragging provides a manual fallback. Unity interpolates a five-by-five
+grid of frontal Blender renders over ±24° per axis. Pinch in or out to step the
+lower-center gold area's width and height between 100%, 50%, and 25%. The same
+steps are available with the minus and plus keys.
 
 ```powershell
 blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_phone_tilt.py -- --output C:/path/to/phone-tilt
@@ -111,4 +114,5 @@ Unity.exe -batchmode -quit -projectPath C:/path/to/local-sky-lighting -buildTarg
 ```
 
 GitHub Pages serves the viewer from `docs/plate-light-study/`. Sensor access
-uses HTTPS and may require permission when the motion button is pressed.
+uses HTTPS. The page listens for orientation events on startup and offers a
+permission button on browsers that require a user gesture.

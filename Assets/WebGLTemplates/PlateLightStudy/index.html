@@ -13,6 +13,11 @@ canvas {
   display: block; width: max(100vw, min(170vw, 167.54vh)); width: max(100vw, min(170vw, 167.54dvh));
   height: 100%; touch-action: none; cursor: move;
 }
+#light-size {
+  position: absolute; top: max(.75rem, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  border-radius: 999px; background: #191816ec; padding: .25rem .65rem;
+  pointer-events: none; white-space: nowrap;
+}
 #status { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); margin: 0; text-align: center; }
 #controls {
   position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
@@ -35,7 +40,8 @@ button:disabled { opacity: .55; }
 </head>
 <body>
 <main>
-  <canvas id="plate" aria-label="皿の反射。ドラッグや矢印キーで照明を動かせます" tabindex="0"></canvas>
+  <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーで光源サイズを調整。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
+  <output id="light-size" hidden></output>
   <p id="status" role="status">読み込み中…</p>
   <fieldset id="controls" aria-label="照明操作" disabled>
     <button type="button" id="motion" data-state="idle" aria-pressed="false" aria-live="polite">センサーを使う</button>
@@ -47,12 +53,21 @@ const canvas = document.querySelector('#plate');
 const controls = document.querySelector('#controls');
 const motionButton = document.querySelector('#motion');
 const statusText = document.querySelector('#status');
+const sizeLabel = document.querySelector('#light-size');
+const sensor = window.isSecureContext ? window.DeviceOrientationEvent : undefined;
+const needsSensorGesture = typeof sensor?.requestPermission === 'function';
 const tiltLimit = 24;
+const lightSizes = [100, 50, 25];
+const pinchStep = 1.25;
+const touches = new Map();
 let instance;
 let drag = null;
 let manualX = 0;
 let manualY = 0;
-let motionEnabled = false;
+let motionListening = false;
+let lighting = 0;
+let sizeTimer;
+let pinchDistance = 0;
 let motionReceived = false;
 let motionTimer;
 let lastPoseTime = -Infinity;
@@ -70,19 +85,34 @@ function setManual(x, y) {
 function setSensorState(state, text) {
   motionButton.dataset.state = state;
   motionButton.textContent = text;
-  motionButton.setAttribute('aria-pressed', String(motionEnabled));
+  motionButton.setAttribute('aria-pressed', String(motionReceived));
+}
+function startMotion(offerPermission = false) {
+  if (!sensor) {
+    setSensorState('idle', 'センサー非対応');
+    return;
+  }
+  motionListening = true;
+  window.addEventListener('deviceorientation', onPose);
+  clearTimeout(motionTimer);
+  setSensorState('waiting', offerPermission ? 'センサーを許可' : 'センサー待機中');
+  motionTimer = setTimeout(() => {
+    setSensorState('idle', offerPermission ? 'センサーを許可' : 'センサー未検出');
+  }, 2500);
 }
 function stopMotion() {
-  if (!motionEnabled) return;
   window.removeEventListener('deviceorientation', onPose);
   clearTimeout(motionTimer);
-  motionEnabled = false;
-  setSensorState('idle', 'センサーを使う');
+  motionListening = false;
+  motionReceived = false;
 }
 function onPose(event) {
   if (!Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
   if (!motionReceived) {
     motionReceived = true;
+    drag = null;
+    lastPoseTime = -Infinity;
+    call('BeginMotion');
     setSensorState('running', 'センサー動作中');
     clearTimeout(motionTimer);
   }
@@ -97,58 +127,96 @@ function onPose(event) {
   }));
 }
 motionButton.addEventListener('click', async () => {
-  if (motionEnabled) {
+  if (motionReceived) {
     stopMotion();
+    setSensorState('idle', 'センサーを使う');
     setManual(0, 0);
+    return;
+  }
+  if (!needsSensorGesture) {
+    if (!motionListening) startMotion();
     return;
   }
   motionButton.disabled = true;
   try {
-    const sensor = window.DeviceOrientationEvent;
-    if (!sensor || !window.isSecureContext) {
-      setSensorState('idle', 'センサー非対応');
-      return;
-    }
-    if (typeof sensor.requestPermission === 'function' && await sensor.requestPermission() !== 'granted') {
+    if (await sensor.requestPermission() === 'granted') {
+      if (!motionReceived) startMotion();
+    } else {
+      stopMotion();
       setSensorState('idle', 'センサー未許可');
-      return;
     }
-    setManual(0, 0);
-    call('BeginMotion');
-    motionEnabled = true;
-    motionReceived = false;
-    lastPoseTime = -Infinity;
-    window.addEventListener('deviceorientation', onPose);
-    setSensorState('waiting', 'センサー待機中');
-    motionTimer = setTimeout(() => {
-      if (!motionReceived) setSensorState('idle', 'センサー未検出');
-    }, 2500);
   } catch (_) {
-    setSensorState('idle', 'センサー非対応');
+    stopMotion();
+    setSensorState('idle', 'センサー未許可');
   } finally {
     motionButton.disabled = false;
   }
 });
 document.querySelector('#reset').addEventListener('click', () => {
-  if (motionEnabled) call('ResetTilt');
+  if (motionReceived) call('ResetTilt');
   else setManual(0, 0);
 });
+function changeLightSize(step) {
+  const next = Math.max(0, Math.min(lightSizes.length - 1, lighting + step));
+  if (next === lighting) return;
+  lighting = next;
+  call('SetLighting', lighting);
+  sizeLabel.textContent = '光源サイズ ' + lightSizes[lighting] + '%';
+  sizeLabel.hidden = false;
+  clearTimeout(sizeTimer);
+  sizeTimer = setTimeout(() => { sizeLabel.hidden = true; }, 1000);
+}
+function touchDistance() {
+  const [a, b] = touches.values();
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
 canvas.addEventListener('pointerdown', event => {
-  if (!instance || !event.isPrimary || event.button !== 0 || motionEnabled) return;
+  if (!instance || event.button !== 0) return;
   canvas.setPointerCapture(event.pointerId);
-  drag = {id: event.pointerId, x: event.clientX, y: event.clientY, startX: manualX, startY: manualY};
+  if (event.pointerType === 'touch') {
+    touches.set(event.pointerId, event);
+    if (touches.size > 1) {
+      drag = null;
+      pinchDistance = touches.size === 2 ? touchDistance() : 0;
+      return;
+    }
+  }
+  if (!motionReceived && event.isPrimary) {
+    drag = {id: event.pointerId, x: event.clientX, y: event.clientY, startX: manualX, startY: manualY};
+  }
 });
 canvas.addEventListener('pointermove', event => {
+  if (touches.has(event.pointerId)) {
+    touches.set(event.pointerId, event);
+    if (touches.size > 1) {
+      if (touches.size !== 2) return;
+      const distance = touchDistance();
+      if (!pinchDistance || distance <= pinchDistance / pinchStep || distance >= pinchDistance * pinchStep) {
+        if (pinchDistance) changeLightSize(distance < pinchDistance ? 1 : -1);
+        pinchDistance = distance;
+      }
+      return;
+    }
+  }
   if (drag?.id !== event.pointerId) return;
   const sensitivity = 2 * tiltLimit / Math.min(innerWidth, innerHeight);
   setManual(drag.startX + sensitivity*(event.clientX-drag.x),
     drag.startY + sensitivity*(drag.y-event.clientY));
 });
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-  canvas.addEventListener(type, () => { drag = null; });
+  canvas.addEventListener(type, event => {
+    if (touches.delete(event.pointerId)) pinchDistance = touches.size === 2 ? touchDistance() : 0;
+    if (drag?.id === event.pointerId) drag = null;
+  });
 }
 canvas.addEventListener('keydown', event => {
-  if (!instance || motionEnabled) return;
+  if (!instance) return;
+  if (event.key === '+' || event.key === '=' || event.key === '-') {
+    event.preventDefault();
+    changeLightSize(event.key === '-' ? 1 : -1);
+    return;
+  }
+  if (motionReceived) return;
   const delta = {ArrowLeft: [-2,0], ArrowRight: [2,0], ArrowUp: [0,2], ArrowDown: [0,-2]}[event.key];
   if (!delta) return;
   event.preventDefault();
@@ -181,7 +249,7 @@ loader.onload = () => {
       instance = result;
       controls.disabled = false;
       statusText.hidden = true;
-      setManual(0, 0);
+      startMotion(needsSensorGesture);
     }).catch(failed);
 };
 document.body.append(loader);
