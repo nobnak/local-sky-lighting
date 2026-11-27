@@ -19,6 +19,13 @@ canvas {
   background: #191816ec; padding: .25rem .65rem; pointer-events: none; white-space: nowrap;
 }
 #status { top: 50%; text-align: center; }
+#hdr-diagnostics {
+  position: absolute; top: max(.75rem, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 2rem); box-sizing: border-box; margin: 0;
+  padding: .5rem .65rem; border-radius: .55rem; background: #191816ec; font-size: 13px;
+  white-space: pre-line; pointer-events: none;
+}
+#hdr-diagnostics:not([hidden]) ~ #light-size { top: max(6.5rem, calc(env(safe-area-inset-top) + 5.75rem)); }
 #controls {
   position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
   gap: .45rem; border: 0; margin: 0; padding: .5rem .75rem max(.75rem, env(safe-area-inset-bottom));
@@ -52,6 +59,7 @@ button:disabled { opacity: .55; }
 <body>
 <main>
   <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーで光源サイズを調整。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
+  <p id="hdr-diagnostics" role="status" hidden></p>
   <output id="light-size" hidden></output>
   <p id="status" role="status">読み込み中…</p>
   <fieldset id="controls" aria-label="照明操作" disabled>
@@ -61,7 +69,7 @@ button:disabled { opacity: .55; }
   </fieldset>
 </main>
 <script type="module">
-import('./viewer.js').catch(error => {
+import('./viewer.js?v=2').catch(error => {
   document.querySelector('#status').textContent = '描画ライブラリを読み込めませんでした。';
   console.error(error);
 });

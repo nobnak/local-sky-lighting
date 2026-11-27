@@ -125,7 +125,12 @@ the same linear frames, scene exposure and shadow curve. Only HDR mode extends
 the high end of the highlight curve above SDR reference white. The page uses
 WebGPU's extended-range canvas when available and shows SDR on other displays,
 with a WebGL 2 fallback for browsers that cannot initialize WebGPU. HDR display
-requires a compatible browser, operating-system mode and display.
+requires a compatible browser, operating-system mode and display. Append
+`?hdr-test=1` to show the actual graphics backend, the browser's dynamic-range
+media query and the canvas configuration. If the browser reports standard
+dynamic range but accepts an extended float canvas, the page starts in SDR
+and lets you try the HDR canvas manually. An accepted canvas configuration
+does not guarantee that the display presents the extra brightness.
 
 Regenerate the atlases from the original `reference-plate.blend`:
 

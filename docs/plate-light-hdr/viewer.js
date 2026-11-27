@@ -7,6 +7,8 @@ import { bindInputs } from './input.js';
 const status = document.querySelector('#status');
 const size = document.querySelector('#light-size');
 const mode = document.querySelector('#mode');
+const diagnostics = document.querySelector('#hdr-diagnostics');
+const hdrTest = new URLSearchParams(location.search).get('hdr-test') === '1';
 const hdrDisplay = matchMedia('(dynamic-range: high)');
 const lightSizes = [100, 50, 25];
 const frames = new Map();
@@ -18,6 +20,7 @@ const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
 camera.position.z = 1;
 
 let renderer, atlasNode, renderRequest, sizeTimer;
+let canvasConfig;
 let requestedLight = 0;
 let displayedLight = 0;
 
@@ -106,12 +109,22 @@ function setTilt(x, y) {
 }
 
 function setMode(enableHdr) {
-  const available = renderer.backend.isWebGPUBackend && hdrDisplay.matches;
-  hdrMix.value = available && enableHdr ? 1 : 0;
-  mode.textContent = hdrMix.value ? 'HDR' : 'SDR';
-  mode.disabled = !available;
-  mode.title = available ? 'HDRとSDRを切り替える' : 'この表示環境ではSDR表示';
+  const webGpu = renderer.backend.isWebGPUBackend;
+  const extended = canvasConfig?.format === 'rgba16float' && canvasConfig?.toneMapping?.mode === 'extended';
+  const available = webGpu && hdrDisplay.matches && (!canvasConfig || extended);
+  const trial = hdrTest && !hdrDisplay.matches && extended;
+  hdrMix.value = (available || trial) && enableHdr ? 1 : 0;
+  mode.textContent = hdrMix.value ? (trial ? 'HDR試験' : 'HDR') : 'SDR';
+  mode.disabled = !available && !trial;
+  mode.title = available || trial ? 'HDRとSDRを切り替える' : 'この表示環境ではSDR表示';
   mode.setAttribute('aria-pressed', String(Boolean(hdrMix.value)));
+  if (hdrTest) {
+    const backend = webGpu ? 'WebGPU' : navigator.gpu ? 'WebGL 2（WebGPU初期化不可）' : 'WebGL 2（WebGPU APIなし）';
+    const canvas = canvasConfig ? `${canvasConfig.format} / ${canvasConfig.toneMapping?.mode ?? 'standard'}`
+      : webGpu ? '取得不可' : 'WebGPU未使用';
+    diagnostics.textContent = `描画: ${backend}\nブラウザのHDR判定: ${hdrDisplay.matches ? 'high' : 'standard'}\nキャンバス: ${canvas}`;
+    diagnostics.hidden = false;
+  }
   draw();
 }
 
@@ -156,11 +169,12 @@ async function start() {
     renderer.setSize(width, height, false);
     draw();
   }
-  setMode(true);
   resize();
   renderer.render(scene, camera);
+  if (renderer.backend.isWebGPUBackend) canvasConfig = canvas.getContext('webgpu')?.getConfiguration?.();
+  setMode(hdrDisplay.matches);
   new ResizeObserver(resize).observe(canvas);
-  hdrDisplay.addEventListener('change', () => setMode(true));
+  hdrDisplay.addEventListener('change', () => setMode(hdrDisplay.matches));
   mode.addEventListener('click', () => setMode(!hdrMix.value));
   bindInputs(canvas, setTilt, changeLight);
   document.querySelector('#controls').disabled = false;
