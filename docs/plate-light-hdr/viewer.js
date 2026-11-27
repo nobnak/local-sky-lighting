@@ -21,26 +21,61 @@ camera.position.z = 1;
 
 let renderer, atlasNode, renderRequest, sizeTimer;
 let canvasConfig;
+const gpuAttempts = [];
 let requestedLight = 0;
 let displayedLight = 0;
 
 async function createRenderer(canvas) {
   if (navigator.gpu) {
-    const gpu = new THREE.WebGPURenderer({ canvas, alpha: false, outputType: THREE.HalfFloatType });
     THREE.ColorManagement.define({ [ExtendedSRGBColorSpace]: ExtendedSRGBColorSpaceImpl });
-    gpu.outputColorSpace = ExtendedSRGBColorSpace;
-    try {
-      await gpu.init();
-      if (gpu.backend.isWebGPUBackend) return gpu;
-    } catch (error) {
-      console.warn('WebGPU initialization failed, trying WebGL 2.', error);
+    for (const featureLevel of ['core', 'compatibility']) {
+      let device, gpu;
+      let stage = 'adapter';
+      try {
+        const adapter = await navigator.gpu.requestAdapter({ featureLevel });
+        if (!adapter) {
+          gpuAttempts.push(`${featureLevel}: adapterなし`);
+          continue;
+        }
+        stage = 'device';
+        const requiredFeatures = adapter.features.has('core-features-and-limits') ? ['core-features-and-limits'] : [];
+        device = await adapter.requestDevice({ requiredFeatures });
+        stage = 'renderer';
+        gpu = new THREE.WebGPURenderer({ canvas: canvas.cloneNode(), device, alpha: false,
+          outputType: THREE.HalfFloatType });
+        gpu.outputColorSpace = ExtendedSRGBColorSpace;
+        await gpu.init();
+        if (gpu.backend.isWebGPUBackend) {
+          gpuAttempts.push(`${featureLevel}: OK`);
+          return gpu;
+        }
+        gpuAttempts.push(`${featureLevel}: renderer不可`);
+      } catch (error) {
+        gpuAttempts.push(`${featureLevel}: ${stage}不可`);
+        console.warn(`WebGPU ${featureLevel} ${stage} initialization failed.`, error);
+      }
+      await gpu?.dispose();
+      device?.destroy();
     }
-    await gpu.dispose();
   }
-  const fallback = new THREE.WebGPURenderer({ canvas: canvas.cloneNode(), alpha: false,
+  const fallback = new THREE.WebGPURenderer({ canvas, alpha: false,
     forceWebGL: true, outputBufferType: THREE.UnsignedByteType });
   await fallback.init();
   return fallback;
+}
+
+function keepControlsInView() {
+  const viewport = window.visualViewport;
+  if (!viewport) return;
+  function update() {
+    const bottom = viewport.scale === 1 ? Math.max(0,
+      document.documentElement.clientHeight - viewport.height - viewport.offsetTop) : 0;
+    document.documentElement.style.setProperty('--viewport-obstruction', `${Math.ceil(bottom)}px`);
+  }
+  viewport.addEventListener('resize', update);
+  viewport.addEventListener('scroll', update);
+  window.addEventListener('resize', update);
+  update();
 }
 
 function loadBytes(index) {
@@ -123,6 +158,7 @@ function setMode(enableHdr) {
     const canvas = canvasConfig ? `${canvasConfig.format} / ${canvasConfig.toneMapping?.mode ?? 'standard'}`
       : webGpu ? '取得不可' : 'WebGPU未使用';
     diagnostics.textContent = `描画: ${backend}\nブラウザのHDR判定: ${hdrDisplay.matches ? 'high' : 'standard'}\nキャンバス: ${canvas}`;
+    if (gpuAttempts.length) diagnostics.textContent += `\nWebGPU: ${gpuAttempts.join(' / ')}`;
     diagnostics.hidden = false;
   }
   draw();
@@ -183,6 +219,7 @@ async function start() {
   Promise.allSettled([loadBytes(1), loadBytes(2)]);
 }
 
+keepControlsInView();
 start().catch(error => {
   status.textContent = '表示を開始できませんでした。';
   console.error(error);

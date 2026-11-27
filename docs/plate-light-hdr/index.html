@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>皿の反射 | HDR比較</title>
 <style>
 :root { color-scheme: dark; font: 15px/1.4 system-ui, sans-serif; background: #000; color: #f7efe6; }
@@ -25,10 +25,12 @@ canvas {
   padding: .5rem .65rem; border-radius: .55rem; background: #191816ec; font-size: 13px;
   white-space: pre-line; pointer-events: none;
 }
-#hdr-diagnostics:not([hidden]) ~ #light-size { top: max(6.5rem, calc(env(safe-area-inset-top) + 5.75rem)); }
+#hdr-diagnostics:not([hidden]) ~ #light-size { top: max(8rem, calc(env(safe-area-inset-top) + 7.25rem)); }
 #controls {
-  position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
-  gap: .45rem; border: 0; margin: 0; padding: .5rem .75rem max(.75rem, env(safe-area-inset-bottom));
+  position: fixed; left: 0; right: 0;
+  bottom: max(var(--viewport-obstruction, 0px), env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: .45rem; border: 0; margin: 0; padding: .5rem .75rem .75rem;
   pointer-events: none;
 }
 button {
@@ -62,14 +64,14 @@ button:disabled { opacity: .55; }
   <p id="hdr-diagnostics" role="status" hidden></p>
   <output id="light-size" hidden></output>
   <p id="status" role="status">読み込み中…</p>
+</main>
   <fieldset id="controls" aria-label="照明操作" disabled>
     <button type="button" id="motion" data-state="idle" aria-pressed="false" aria-live="polite">センサー</button>
     <button type="button" id="reset" aria-label="今の向きを照明の基準にする">基準に戻す</button>
     <button type="button" id="mode" aria-label="HDR表示" aria-pressed="false">SDR</button>
   </fieldset>
-</main>
 <script type="module">
-import('./viewer.js?v=2').catch(error => {
+import('./viewer.js?v=3').catch(error => {
   document.querySelector('#status').textContent = '描画ライブラリを読み込めませんでした。';
   console.error(error);
 });
