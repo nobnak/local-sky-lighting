@@ -9,6 +9,7 @@ from mathutils import Quaternion, Vector
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--output", type=Path, required=True)
+parser.add_argument("--format", choices=("png", "exr"), default="png")
 args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 output = args.output.resolve()
 output.mkdir(parents=True, exist_ok=True)
@@ -19,7 +20,12 @@ scene.cycles.use_denoising = True
 scene.render.use_persistent_data = True
 scene.render.resolution_x, scene.render.resolution_y = 640, 382
 scene.render.resolution_percentage = 100
-scene.render.image_settings.file_format = "PNG"
+if args.format == "exr":
+    scene.render.image_settings.file_format = "OPEN_EXR"
+    scene.render.image_settings.color_depth = "16"
+    scene.render.image_settings.exr_codec = "ZIP"
+else:
+    scene.render.image_settings.file_format = "PNG"
 scene.render.image_settings.color_mode = "RGB"
 
 preferences = bpy.context.preferences.addons["cycles"].preferences
@@ -56,5 +62,5 @@ for folder, scale in (("01-current", 1), ("02-half", .5), ("03-quarter", .25)):
             for light, location, rotation in lights:
                 light.location = tilt @ location
                 light.rotation_euler = (tilt @ rotation).to_euler()
-            scene.render.filepath = str(target / f"{row*5+column:02}.png")
+            scene.render.filepath = str(target / f"{row*5+column:02}.{args.format}")
             bpy.ops.render.render(write_still=True)

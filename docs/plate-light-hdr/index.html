@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>皿の反射 | HDR比較</title>
+<style>
+:root { color-scheme: dark; font: 15px/1.4 system-ui, sans-serif; background: #000; color: #f7efe6; }
+body { margin: 0; overflow: hidden; }
+main { position: relative; height: 100vh; height: 100dvh; overflow: hidden; }
+canvas {
+  position: absolute; inset: 0 auto 0 50%; transform: translateX(-50%);
+  display: block; width: max(100vw, min(170vw, 167.54vh)); width: max(100vw, min(170vw, 167.54dvh));
+  height: 100%; touch-action: none; cursor: move;
+}
+#light-size, #status { position: absolute; left: 50%; transform: translateX(-50%); margin: 0; }
+#light-size {
+  top: max(.75rem, env(safe-area-inset-top)); border-radius: 999px;
+  background: #191816ec; padding: .25rem .65rem; pointer-events: none; white-space: nowrap;
+}
+#status { top: 50%; text-align: center; }
+#controls {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
+  gap: .45rem; border: 0; margin: 0; padding: .5rem .75rem max(.75rem, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+button {
+  pointer-events: auto; min-height: 44px; border: 1px solid #4b4945; border-radius: 999px;
+  background: #191816ec; color: inherit; padding: .45rem .75rem; font: inherit; cursor: pointer;
+}
+#motion::before { display: inline-block; width: .48rem; height: .48rem; margin-right: .45rem; border-radius: 50%; background: #a19b92; content: ""; }
+#motion[data-state="running"]::before { background: #8ddd9d; }
+#motion[data-state="waiting"]::before { background: #f3b565; }
+#mode[aria-pressed="true"] { border-color: #eab56d; color: #ffd19a; }
+button:disabled { opacity: .55; }
+:focus-visible { outline: 2px solid #ffd19a; outline-offset: 2px; }
+@media (min-aspect-ratio: 1/1) {
+  #controls { justify-content: flex-end; padding-right: max(.75rem, env(safe-area-inset-right)); }
+}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.webgpu.js",
+    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.tsl.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<main>
+  <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーで光源サイズを調整。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
+  <output id="light-size" hidden></output>
+  <p id="status" role="status">読み込み中…</p>
+  <fieldset id="controls" aria-label="照明操作" disabled>
+    <button type="button" id="motion" data-state="idle" aria-pressed="false" aria-live="polite">センサー</button>
+    <button type="button" id="reset" aria-label="今の向きを照明の基準にする">基準に戻す</button>
+    <button type="button" id="mode" aria-label="HDR表示" aria-pressed="false">SDR</button>
+  </fieldset>
+</main>
+<script type="module">
+import('./viewer.js').catch(error => {
+  document.querySelector('#status').textContent = '描画ライブラリを読み込めませんでした。';
+  console.error(error);
+});
+</script>
+</body>
+</html>

@@ -116,3 +116,26 @@ Unity.exe -batchmode -quit -projectPath C:/path/to/local-sky-lighting -buildTarg
 GitHub Pages serves the viewer from `docs/plate-light-study/`. Sensor access
 uses HTTPS. The page listens for orientation events on startup and offers a
 permission button on browsers that require a user gesture.
+
+### Three.js HDR phone-tilt comparison
+
+GitHub Pages also serves `docs/plate-light-hdr/`. It uses the same fixed view,
+tilt grid and three light sizes as the Unity viewer. The HDR/SDR button compares
+the same linear frames, scene exposure and shadow curve. Only HDR mode extends
+the high end of the highlight curve above SDR reference white. The page uses
+WebGPU's extended-range canvas when available and shows SDR on other displays,
+with a WebGL 2 fallback for browsers that cannot initialize WebGPU. HDR display
+requires a compatible browser, operating-system mode and display.
+
+Regenerate the atlases from the original `reference-plate.blend`:
+
+```powershell
+blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_phone_tilt.py -- --output C:/path/to/phone-tilt-linear --format exr
+python -m pip install numpy OpenEXR
+python Tools/PlateReference/pack_phone_tilt_exr.py C:/path/to/phone-tilt-linear docs/plate-light-hdr/Frames
+```
+
+The Blender frames are scene-linear half-float OpenEXR. The three 5×5 atlases
+use lossy DWAA compression at level 20 to retain HDR range with a smaller web
+payload. The page loads its pinned Three.js modules from jsDelivr and needs no
+Unity Web build for this route.
