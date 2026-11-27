@@ -82,3 +82,18 @@ exposure. The saved `surface-study.blend` opens with the varied material.
 ```powershell
 blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_reference.py -- --output C:/path/to/variety-study --variety-study --sweep
 ```
+
+## Single-source size study
+
+Use the original `reference-plate.blend` as input. This compares the lower-center
+gold area light at 100%, 50%, and 25% width and height, plus a render with that
+fixture disabled. All sizes use the saved position, color, and total power.
+Other lights, the plate material, and exposure are shared across the comparison.
+Use `--sweep` to render matching camera views for the three active sizes.
+
+```powershell
+blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_light_size.py -- --output C:/path/to/light-size-study --sweep
+```
+
+Use `--isolated` with a separate output directory to disable all other fixtures
+for the same comparison. The saved world remains active.
