@@ -2,6 +2,7 @@ Shader "Local Sky Lighting/Struck Plate" {
     Properties {
         [NoScaleOffset] _Surface ("Strike slopes XY and polish", 2D) = "gray" {}
         [NoScaleOffset] _ScratchDirection ("Scratch direction", 2D) = "gray" {}
+        _MetalColor ("Gold metal color", Color) = (0.965, 0.835, 0.53, 1)
         _MirrorShare ("Mirror reflection weight", Range(0, 1)) = 0.74
         _SlopeStrength ("Strike normal strength", Float) = 1
         _RoughnessScale ("Roughness scale", Range(0.5, 2)) = 1
@@ -19,18 +20,12 @@ Shader "Local Sky Lighting/Struck Plate" {
             #pragma fragment Frag
             #include "UnityCG.cginc"
 
-            #define MAX_LIGHTS 9
             #define PI 3.14159265
 
             sampler2D _Surface, _ScratchDirection;
             float _SlopeStrength, _RoughnessScale, _Anisotropy, _Exposure, _Rim, _MirrorShare;
-            int _LightCount;
-            float4 _LightPosition[MAX_LIGHTS];
-            float4 _LightRight[MAX_LIGHTS];
-            float4 _LightUp[MAX_LIGHTS];
-            float4 _LightForward[MAX_LIGHTS];
-            float4 _LightRadiance[MAX_LIGHTS];
-            float4 _BeamCones[MAX_LIGHTS];
+            float4 _MetalColor;
+            float4 _LightPosition, _LightRight, _LightUp, _LightForward, _LightRadiance, _BeamCone;
 
             struct Attributes {
                 float4 position : POSITION;
@@ -55,15 +50,15 @@ Shader "Local Sky Lighting/Struck Plate" {
 
             // Integrate the two marginal GGX slope distributions over the light rectangle.
             // The separable footprint approximates the projected area integral.
-            float RectangleSpecular(int i, float3 p, float3 reflection, float2 alpha) {
-                float3 forward = _LightForward[i].xyz;
+            float RectangleSpecular(float3 p, float3 reflection, float2 alpha) {
+                float3 forward = _LightForward.xyz;
                 float incidence = -dot(reflection, forward);
-                float distance = dot(p - _LightPosition[i].xyz, forward) / max(incidence, 0.0001);
+                float distance = dot(p - _LightPosition.xyz, forward) / max(incidence, 0.0001);
                 if (incidence <= 0 || distance <= 0) return 0;
 
-                float3 hit = p + reflection * distance - _LightPosition[i].xyz;
-                float2 dimensions = float2(_LightRight[i].w, _LightUp[i].w);
-                float2 center = float2(dot(hit, _LightRight[i].xyz), dot(hit, _LightUp[i].xyz));
+                float3 hit = p + reflection * distance - _LightPosition.xyz;
+                float2 dimensions = float2(_LightRight.w, _LightUp.w);
+                float2 center = float2(dot(hit, _LightRight.xyz), dot(hit, _LightUp.xyz));
                 float2 sigma = max(0.003, 2 * distance * alpha / sqrt(max(incidence, 0.15)));
                 float2 area = SlopeCdf((dimensions - center) / sigma) - SlopeCdf((-dimensions - center) / sigma);
                 return area.x * area.y;
@@ -74,8 +69,8 @@ Shader "Local Sky Lighting/Struck Plate" {
                 return max(0.002, roughness * roughness * float2(1 / aspect, aspect));
             }
 
-            float2 ProjectScratchLobe(int i, float3 grain, float2 axes) {
-                float2 aligned = float2(dot(grain, _LightRight[i].xyz), dot(grain, _LightUp[i].xyz));
+            float2 ProjectScratchLobe(float3 grain, float2 axes) {
+                float2 aligned = float2(dot(grain, _LightRight.xyz), dot(grain, _LightUp.xyz));
                 float2 weight = saturate(aligned * aligned);
                 return sqrt(lerp(axes.y * axes.y, axes.x * axes.x, weight));
             }
@@ -98,7 +93,7 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float edge = smoothstep(0.39, 1.46, length(p));
                 float3 bodyColor = lerp(float3(0.37, 0.104, 0.035), float3(0.071, 0.012, 0.015), edge);
                 bodyColor = lerp(bodyColor, float3(0.062, 0.020, 0.018), _Rim);
-                float3 alloy = lerp(float3(0.79, 0.53, 0.20), float3(0.19, 0.046, 0.031), edge);
+                float3 alloy = _MetalColor.rgb * lerp(1, float3(0.48, 0.28, 0.25), edge);
                 float polished = lerp(0.01, 0.89, surface.b) * (1 - _Rim);
                 float mirrorRoughness = lerp(0.24, 0.033, surface.b) * _RoughnessScale;
                 float2 mirrorAlpha = RoughnessAxes(mirrorRoughness, 0);
@@ -109,23 +104,19 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float3 bodyF0 = lerp(0.018, bodyColor, 0.06);
                 float3 bodyF = lerp(bodyF0, 1, fresnel);
                 float3 strikeF = lerp(alloy, 1, pow(1 - saturate(dot(strikeNormal, view)), 5));
-                float3 radiance = bodyColor * 0.012;
-
-                [loop] for (int i = 0; i < _LightCount; i++) {
-                    float3 toward = _LightPosition[i].xyz - p;
-                    float distanceSq = max(dot(toward, toward), 0.0001);
-                    float3 lightDir = toward * rsqrt(distanceSq);
-                    float emitterCos = saturate(-dot(lightDir, _LightForward[i].xyz));
-                    float beam = smoothstep(_BeamCones[i].x, _BeamCones[i].y, emitterCos);
-                    if (beam <= 0) continue;
-                    float3 irradiance = _LightRadiance[i].rgb * _LightRadiance[i].w * emitterCos / distanceSq;
-                    float3 diffuse = irradiance * saturate(dot(bodyNormal, lightDir)) * bodyColor * (1 - bodyF) / PI;
-                    float3 body = bodyF * _LightRadiance[i].rgb * RectangleSpecular(i, p, bodyRay, bodyAlpha);
-                    float mirror = RectangleSpecular(i, p, strikeRay, mirrorAlpha);
-                    float scratch = RectangleSpecular(i, p, strikeRay, ProjectScratchLobe(i, grain, scratchAlpha));
-                    float3 metal = strikeF * _LightRadiance[i].rgb * lerp(scratch, mirror, _MirrorShare);
-                    radiance += beam * lerp(diffuse + body, metal, polished);
-                }
+                float3 toward = _LightPosition.xyz - p;
+                float distanceSq = max(dot(toward, toward), 0.0001);
+                float3 lightDir = toward * rsqrt(distanceSq);
+                float emitterCos = saturate(-dot(lightDir, _LightForward.xyz));
+                float beam = smoothstep(_BeamCone.x, _BeamCone.y, emitterCos);
+                if (beam <= 0) return float4(0, 0, 0, 1);
+                float3 irradiance = _LightRadiance.rgb * _LightRadiance.w * emitterCos / distanceSq;
+                float3 diffuse = irradiance * saturate(dot(bodyNormal, lightDir)) * bodyColor * (1 - bodyF) / PI;
+                float3 body = bodyF * _LightRadiance.rgb * RectangleSpecular(p, bodyRay, bodyAlpha);
+                float mirror = RectangleSpecular(p, strikeRay, mirrorAlpha);
+                float scratch = RectangleSpecular(p, strikeRay, ProjectScratchLobe(grain, scratchAlpha));
+                float3 metal = strikeF * _LightRadiance.rgb * lerp(scratch, mirror, _MirrorShare);
+                float3 radiance = beam * lerp(diffuse + body, metal, polished);
                 return float4(radiance * _Exposure, 1);
             }
             ENDHLSL

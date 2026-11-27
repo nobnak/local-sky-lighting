@@ -105,11 +105,12 @@ bowl and rim meshes, and the editable `Amber bowl` material. Its surface map
 stores the normal slope in red and green and the polish mask in blue. The
 scratch direction map is estimated from the local surface structure and
 controls the orientation of the anisotropic lobe over the sharper mirror lobe.
-The shader evaluates nine spotlights with fixed rectangular apertures and soft
-cone falloff. Tilt rotates the rig relative to the first phone sample or the
-recenter pose. Pinch changes the lower-center gold beam's opening angle between
-64°, 32°, and 16°, preserving its on-axis intensity. Drag and arrow keys provide
-a manual tilt fallback.
+The shader evaluates one white spotlight with a fixed rectangular aperture and
+soft cone falloff. The editable `Gold metal color` parameter colors the metal's
+reflection. Tilt rotates the spotlight relative to the first phone sample or
+the recenter pose. Pinch changes its opening angle between 64°, 32°, and 16°,
+preserving its on-axis intensity. Drag and arrow keys provide a manual tilt
+fallback.
 
 The `Plate Post-processing` profile applies a small Bloom before Neutral tone
 mapping for the SDR canvas. Append `&bloom=0` to the viewer URL to compare the
@@ -130,7 +131,7 @@ uses HTTPS and browsers that require a gesture show a permission button.
 
 GitHub Pages also serves `docs/plate-light-hdr/`. It preserves the earlier
 5×5 grid of Blender renders with three emitter sizes. The current Unity viewer
-uses live spotlight shading and varies the beam angle. The HDR/SDR button compares
+uses one white spotlight and varies the beam angle. The HDR/SDR button compares
 the same linear frames, scene exposure and shadow curve. Only HDR mode extends
 the high end of the highlight curve above SDR reference white. The page uses
 WebGPU's extended-range canvas when available and shows SDR on other displays,

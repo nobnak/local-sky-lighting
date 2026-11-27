@@ -107,9 +107,11 @@ namespace LocalSkyLighting {
             serialized.FindProperty("plate").objectReferenceValue = plate;
             serialized.FindProperty("plateCamera").objectReferenceValue = camera;
             serialized.FindProperty("postProcessing").objectReferenceValue = volume;
-            var lights = serialized.FindProperty("lights");
-            lights.arraySize = data.lights.Length;
-            for (var i = 0; i < data.lights.Length; i++) lights.GetArrayElementAtIndex(i).boxedValue = data.lights[i];
+            var spotlight = Array.Find(data.lights, light => light.name == "Gold streak at lower center");
+            if (spotlight.power <= 0) throw new InvalidOperationException("Missing lower-center spotlight");
+            spotlight.name = "White spotlight";
+            spotlight.color = Vector3.one;
+            serialized.FindProperty("spotlight").boxedValue = spotlight;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(mesh);
             AssetDatabase.SaveAssets();
