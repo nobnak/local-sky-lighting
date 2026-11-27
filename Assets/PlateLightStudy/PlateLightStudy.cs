@@ -97,9 +97,8 @@ namespace LocalSkyLighting {
 
         void UpdateSpotlight() {
             var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right);
-            var halfAngle = SpotAngles[lighting] * .5f;
-            var outer = Mathf.Cos(halfAngle * Mathf.Deg2Rad);
-            var inner = Mathf.Cos(halfAngle * .8f * Mathf.Deg2Rad);
+            var outerHalfAngle = SpotAngles[lighting] * .5f * Mathf.Deg2Rad;
+            var innerHalfAngle = outerHalfAngle * InnerConeRatio;
             var area = Mathf.Max(spotlight.width * spotlight.height, .0001f);
             var radiance = spotlight.power / (Mathf.PI * area);
             properties.SetVector(LightPosition, rotation * spotlight.position);
@@ -107,7 +106,7 @@ namespace LocalSkyLighting {
             properties.SetVector(LightUp, WithW(rotation * spotlight.up, spotlight.height * .5f));
             properties.SetVector(LightForward, rotation * spotlight.forward);
             properties.SetVector(LightRadiance, WithW(spotlight.color * radiance, area));
-            properties.SetVector(BeamCone, new Vector4(outer, inner, 0, 0));
+            properties.SetVector(BeamCone, new Vector4(innerHalfAngle, outerHalfAngle, Mathf.Cos(outerHalfAngle), 0));
             plate.SetPropertyBlock(properties);
         }
 
@@ -135,7 +134,8 @@ namespace LocalSkyLighting {
         static readonly int BeamCone = Shader.PropertyToID("_BeamCone");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
-        static readonly float[] SpotAngles = { 164f, 136f, 112f };
+        const float InnerConeRatio = .72f;
+        static readonly float[] SpotAngles = { 174f, 144f, 118f };
         #endregion
     }
 }

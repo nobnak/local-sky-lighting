@@ -118,8 +118,8 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float distanceSq = max(dot(toward, toward), 0.0001);
                 float3 lightDir = toward * rsqrt(distanceSq);
                 float emitterCos = saturate(-dot(lightDir, _LightForward.xyz));
-                float beam = smoothstep(_BeamCone.x, _BeamCone.y, emitterCos);
-                if (beam <= 0) return float4(environment * _Exposure, 1);
+                if (emitterCos <= _BeamCone.z) return float4(environment * _Exposure, 1);
+                float beam = 1 - smoothstep(_BeamCone.x, _BeamCone.y, acos(emitterCos));
                 float3 irradiance = _LightRadiance.rgb * _LightRadiance.w * emitterCos / distanceSq;
                 float3 diffuse = irradiance * saturate(dot(bodyNormal, lightDir)) * bodyColor * (1 - bodyF) / PI;
                 float3 body = bodyF * _LightRadiance.rgb * RectangleSpecular(p, bodyRay, bodyAlpha);
