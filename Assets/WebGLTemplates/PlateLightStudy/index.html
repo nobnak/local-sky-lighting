@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>皿の反射 · 光源サイズ比較</title>
+<style>
+:root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; background: #151311; color: #f7efe6; }
+body { margin: 0; }
+main { max-width: 55rem; margin: auto; padding: 1.1rem; }
+h1 { font-size: clamp(1.35rem, 4vw, 2rem); margin: 0 0 .5rem; font-weight: 650; }
+p { color: #c7beb5; margin: .55rem 0 0; }
+#stage { position: relative; width: 100%; aspect-ratio: 800/478; background: #000; margin: 1rem 0; }
+canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: ew-resize; }
+#status { position: absolute; top: .5rem; left: .75rem; margin: 0; }
+fieldset { border: 0; padding: 0; margin: 0 0 .8rem; }
+legend { margin-bottom: .4rem; }
+.sizes, .view { display: flex; gap: .55rem; align-items: center; flex-wrap: wrap; }
+button { min-height: 44px; border: 1px solid #605449; border-radius: .4rem; background: #221e1a; color: inherit; padding: .45rem .8rem; font: inherit; cursor: pointer; }
+button[aria-pressed="true"] { border-color: #f3b565; background: #553721; }
+input[type=range] { flex: 1; min-width: 7rem; accent-color: #f3b565; }
+output { min-width: 3.4em; text-align: right; font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid #ffd19a; outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>皿の反射と光源サイズ</h1>
+  <p>皿を左右にドラッグするか、スライダーで視点を変えます。</p>
+  <div id="stage">
+    <canvas id="plate" aria-label="照明条件を比較する皿のビュー"></canvas>
+    <p id="status" role="status">Unity Web を読み込み中…</p>
+  </div>
+  <fieldset id="controls" disabled>
+    <legend>発光面の幅と高さ</legend>
+    <div class="sizes">
+      <button type="button" data-light="0" aria-pressed="true">100%</button>
+      <button type="button" data-light="1" aria-pressed="false">50%</button>
+      <button type="button" data-light="2" aria-pressed="false">25%</button>
+    </div>
+    <div class="view">
+      <label for="angle">視点</label>
+      <input id="angle" type="range" min="0" max="10" step="1" value="5">
+      <output id="angle-value" for="angle">0.0°</output>
+      <button type="button" id="reset">正面に戻す</button>
+    </div>
+  </fieldset>
+  <p>Blenderでレンダリングした11視点を表示します。対象の面光源は位置・色・出力を固定しています。</p>
+</main>
+<script>
+const canvas = document.querySelector('#plate');
+const controls = document.querySelector('#controls');
+const slider = document.querySelector('#angle');
+const angle = document.querySelector('#angle-value');
+const statusText = document.querySelector('#status');
+const lights = [...document.querySelectorAll('[data-light]')];
+let instance;
+let drag = null;
+function setFrame(value) {
+  const frame = Math.max(0, Math.min(10, Math.round(value)));
+  slider.value = frame;
+  const degrees = (frame - 5) * 1.6;
+  angle.textContent = degrees.toFixed(1) + '°';
+  slider.setAttribute('aria-valuetext', angle.textContent);
+  instance?.SendMessage('PlateLightStudy', 'SetFrame', frame);
+}
+slider.addEventListener('input', () => setFrame(Number(slider.value)));
+document.querySelector('#reset').addEventListener('click', () => setFrame(5));
+for (const button of lights) {
+  button.addEventListener('click', () => {
+    for (const other of lights) other.setAttribute('aria-pressed', String(other === button));
+    instance?.SendMessage('PlateLightStudy', 'SetLighting', Number(button.dataset.light));
+  });
+}
+canvas.addEventListener('pointerdown', event => {
+  if (!instance || !event.isPrimary || event.button !== 0) return;
+  canvas.setPointerCapture(event.pointerId);
+  drag = {id: event.pointerId, x: event.clientX, start: Number(slider.value)};
+});
+canvas.addEventListener('pointermove', event => {
+  if (drag?.id === event.pointerId) setFrame(drag.start + 14*(event.clientX-drag.x)/canvas.clientWidth);
+});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  canvas.addEventListener(type, () => { drag = null; });
+}
+const build = 'Build/';
+const loader = document.createElement('script');
+loader.src = build + '{{{ LOADER_FILENAME }}}';
+const failed = () => { statusText.textContent = 'Unity Web を起動できませんでした。'; };
+loader.onerror = failed;
+loader.onload = () => {
+  createUnityInstance(canvas, {
+    dataUrl: build + '{{{ DATA_FILENAME }}}',
+    frameworkUrl: build + '{{{ FRAMEWORK_FILENAME }}}',
+    codeUrl: build + '{{{ CODE_FILENAME }}}',
+    productName: 'Plate Light Study',
+    productVersion: '1.0',
+    companyName: 'Local Sky Lighting',
+    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    showBanner(message, type) {
+      if (type === 'error') {
+        statusText.hidden = false;
+        statusText.textContent = message;
+      }
+    }
+  }, ratio => { statusText.textContent = '読み込み中… ' + Math.round(100*ratio) + '%'; })
+    .then(result => {
+      instance = result;
+      controls.disabled = false;
+      statusText.hidden = true;
+      setFrame(5);
+    }).catch(failed);
+};
+document.body.append(loader);
+</script>
+</body>
+</html>
