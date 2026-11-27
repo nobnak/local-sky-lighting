@@ -16,3 +16,19 @@ blender -b --python-exit-code 1 --python Tools/PlateReference/render_plate.py --
 
 Visual reference: [Plate for the Sea of Light](https://www.teamlab.art/jp/ew/plate-seaoflight-kyoto/kyoto/).
 The procedural surface and lights are a CG interpretation of the reference.
+
+## Camera-only comparison
+
+Generate the plate scene first, then open it in Blender's background process.
+The orbit script moves the camera through ±12° of azimuth and ±8° of tilt.
+It renders the current material, rounded strike normals with variation inside
+each strike, and two separate color treatments of the rounded material.
+Lights stay fixed in each treatment. The added colored sources are confined
+to the colored-lights treatment.
+
+```powershell
+blender -b C:/path/to/output/plate-materials.blend --python-exit-code 1 --python Tools/PlateReference/render_orbit.py -- --output C:/path/to/orbit
+```
+
+The output contains one PNG sequence per treatment. Use `--frames 3` for the
+endpoints and center, or omit it for the 17-frame sweep.
