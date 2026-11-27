@@ -35,11 +35,13 @@ namespace LocalSkyLighting {
             if (!EditorSceneManager.SaveScene(scene, ScenePath))
                 throw new InvalidOperationException($"Could not save {ScenePath}");
 
+            var splash = PlayerSettings.SplashScreen.show;
             var compression = PlayerSettings.WebGL.compressionFormat;
             var fallback = PlayerSettings.WebGL.decompressionFallback;
             var template = PlayerSettings.WebGL.template;
             var stripping = PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.WebGL);
             try {
+                PlayerSettings.SplashScreen.show = false;
                 PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
                 PlayerSettings.WebGL.decompressionFallback = true;
                 PlayerSettings.WebGL.template = "PROJECT:PlateLightStudy";
@@ -53,6 +55,7 @@ namespace LocalSkyLighting {
                 PlayerSettings.WebGL.template = template;
                 PlayerSettings.WebGL.decompressionFallback = fallback;
                 PlayerSettings.WebGL.compressionFormat = compression;
+                PlayerSettings.SplashScreen.show = splash;
             }
         }
         #endregion
