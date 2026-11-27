@@ -102,9 +102,7 @@ for the same comparison. The saved world remains active.
 
 The camera shows the plate face-on. Phone orientation sets a relative light
 direction from the first sensor sample, or from the pose at the recenter
-button. Drag and the two sliders provide a manual fallback. Unity interpolates
-a five-by-five grid of frontal Blender renders over ±24° per axis. The size
-buttons use matching directions across all three light configurations.
+button. Dragging provides a manual fallback. Unity interpolates a five-by-five grid of frontal Blender renders over ±24° per axis. The published page presents the full-size light configuration and a minimal sensor and recenter overlay.
 
 ```powershell
 blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_phone_tilt.py -- --output C:/path/to/phone-tilt

@@ -2,71 +2,56 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>皿の反射 · 光源サイズ比較</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>皿の反射</title>
 <style>
-:root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; background: #151311; color: #f7efe6; }
-body { margin: 0; }
-main { max-width: 55rem; margin: auto; padding: 1.1rem; }
-h1 { font-size: clamp(1.35rem, 4vw, 2rem); margin: 0 0 .5rem; font-weight: 650; }
-p { color: #c7beb5; margin: .55rem 0 0; }
-#stage { position: relative; width: 100%; aspect-ratio: 800/478; background: #000; margin: 1rem 0; }
-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: move; }
-#status { position: absolute; top: .5rem; left: .75rem; margin: 0; }
-fieldset { border: 0; padding: 0; margin: 0 0 .8rem; }
-legend { margin-bottom: .4rem; }
-.sizes, .view, .motion { display: flex; gap: .55rem; align-items: center; flex-wrap: wrap; }
-button { min-height: 44px; border: 1px solid #605449; border-radius: .4rem; background: #221e1a; color: inherit; padding: .45rem .8rem; font: inherit; cursor: pointer; }
-button[aria-pressed="true"] { border-color: #f3b565; background: #553721; }
-.motion { margin: .55rem 0; }
-.view { margin: .35rem 0; }
-.view label { min-width: 3em; }
-input[type=range] { flex: 1; min-width: 7rem; accent-color: #f3b565; }
-output { min-width: 3.4em; text-align: right; font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid #ffd19a; outline-offset: 3px; }
+:root { color-scheme: dark; font: 15px/1.4 system-ui, sans-serif; background: #000; color: #f7efe6; }
+body { margin: 0; overflow: hidden; }
+main { position: relative; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; }
+canvas {
+  position: absolute; inset: 0 auto 0 50%; transform: translateX(-50%);
+  display: block; width: max(100vw, min(170vw, 167.54vh)); width: max(100vw, min(170vw, 167.54dvh));
+  height: 100%; touch-action: none; cursor: move;
+}
+#status { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); margin: 0; text-align: center; }
+#controls {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
+  gap: .55rem; border: 0; margin: 0; padding: .5rem .75rem max(.75rem, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+button {
+  pointer-events: auto; min-height: 44px; border: 1px solid #4b4945; border-radius: 999px;
+  background: #191816ec; color: inherit; padding: .45rem .85rem; font: inherit; cursor: pointer;
+}
+#motion::before { display: inline-block; width: .48rem; height: .48rem; margin-right: .45rem; border-radius: 50%; background: #a19b92; content: ""; }
+#motion[data-state="running"]::before { background: #8ddd9d; }
+#motion[data-state="waiting"]::before { background: #f3b565; }
+button:disabled { opacity: .55; }
+:focus-visible { outline: 2px solid #ffd19a; outline-offset: 2px; }
+@media (min-aspect-ratio: 1/1) {
+  #controls { justify-content: flex-end; padding-right: max(.75rem, env(safe-area-inset-right)); }
+}
 </style>
 </head>
 <body>
 <main>
-  <h1>皿の反射と光源サイズ</h1>
-  <p>皿は正面のまま、スマホの傾きで照明の方向が変わります。</p>
-  <div id="stage">
-    <canvas id="plate" aria-label="照明条件を比較する皿のビュー"></canvas>
-    <p id="status" role="status">Unity Web を読み込み中…</p>
-  </div>
-  <fieldset id="controls" disabled>
-    <legend>発光面の幅と高さ</legend>
-    <div class="sizes">
-      <button type="button" data-light="0" aria-pressed="true">100%</button>
-      <button type="button" data-light="1" aria-pressed="false">50%</button>
-      <button type="button" data-light="2" aria-pressed="false">25%</button>
-    </div>
-    <div class="motion">
-      <button type="button" id="motion">傾きセンサーを使う</button>
-      <button type="button" id="reset">今の向きを基準にする</button>
-    </div>
-    <p id="motion-status" aria-live="polite">ドラッグやスライダーでも照明を動かせます。</p>
-    <div class="view">
-      <label for="tilt-x">左右</label>
-      <input id="tilt-x" type="range" min="-24" max="24" step="1" value="0">
-      <label for="tilt-y">上下</label>
-      <input id="tilt-y" type="range" min="-24" max="24" step="1" value="0">
-    </div>
+  <canvas id="plate" aria-label="皿の反射。ドラッグや矢印キーで照明を動かせます" tabindex="0"></canvas>
+  <p id="status" role="status">読み込み中…</p>
+  <fieldset id="controls" aria-label="照明操作" disabled>
+    <button type="button" id="motion" data-state="idle" aria-pressed="false" aria-live="polite">センサーを使う</button>
+    <button type="button" id="reset" aria-label="今の向きを照明の基準にする">基準に戻す</button>
   </fieldset>
-  <p>照明を振ってレンダリングした画像を補間表示します。比較する面光源の位置・色・出力は、同じ傾きで揃えています。</p>
 </main>
 <script>
 const canvas = document.querySelector('#plate');
 const controls = document.querySelector('#controls');
-const xControl = document.querySelector('#tilt-x');
-const yControl = document.querySelector('#tilt-y');
 const motionButton = document.querySelector('#motion');
-const motionStatus = document.querySelector('#motion-status');
 const statusText = document.querySelector('#status');
-const lights = [...document.querySelectorAll('[data-light]')];
 const tiltLimit = 24;
 let instance;
 let drag = null;
+let manualX = 0;
+let manualY = 0;
 let motionEnabled = false;
 let motionReceived = false;
 let motionTimer;
@@ -77,24 +62,28 @@ function call(method, value) {
   else instance.SendMessage('PlateLightStudy', method, value);
 }
 function setManual(x, y) {
-  const clamp = value => Math.round(Math.max(-tiltLimit, Math.min(tiltLimit, value)));
-  xControl.value = clamp(x);
-  yControl.value = clamp(y);
-  call('SetManualTilt', JSON.stringify({x: Number(xControl.value), y: Number(yControl.value)}));
+  const clamp = value => Math.max(-tiltLimit, Math.min(tiltLimit, value));
+  manualX = clamp(x);
+  manualY = clamp(y);
+  call('SetManualTilt', JSON.stringify({x: manualX, y: manualY}));
+}
+function setSensorState(state, text) {
+  motionButton.dataset.state = state;
+  motionButton.textContent = text;
+  motionButton.setAttribute('aria-pressed', String(motionEnabled));
 }
 function stopMotion() {
   if (!motionEnabled) return;
   window.removeEventListener('deviceorientation', onPose);
   clearTimeout(motionTimer);
   motionEnabled = false;
-  motionButton.textContent = '傾きセンサーを使う';
-  motionStatus.textContent = 'ドラッグやスライダーで照明を操作できます。';
+  setSensorState('idle', 'センサーを使う');
 }
 function onPose(event) {
   if (!Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
   if (!motionReceived) {
     motionReceived = true;
-    motionStatus.textContent = 'センサーで操作中。角度を合わせ直すには「今の向きを基準にする」を押します。';
+    setSensorState('running', 'センサー動作中');
     clearTimeout(motionTimer);
   }
   const time = performance.now();
@@ -117,11 +106,11 @@ motionButton.addEventListener('click', async () => {
   try {
     const sensor = window.DeviceOrientationEvent;
     if (!sensor || !window.isSecureContext) {
-      motionStatus.textContent = 'このブラウザでは傾きを取得できません。ドラッグやスライダーで操作できます。';
+      setSensorState('idle', 'センサー非対応');
       return;
     }
     if (typeof sensor.requestPermission === 'function' && await sensor.requestPermission() !== 'granted') {
-      motionStatus.textContent = '傾きセンサーの許可がありません。ドラッグやスライダーで操作できます。';
+      setSensorState('idle', 'センサー未許可');
       return;
     }
     setManual(0, 0);
@@ -130,13 +119,12 @@ motionButton.addEventListener('click', async () => {
     motionReceived = false;
     lastPoseTime = -Infinity;
     window.addEventListener('deviceorientation', onPose);
-    motionButton.textContent = '傾きセンサーを止める';
-    motionStatus.textContent = '傾きのデータを待っています…';
+    setSensorState('waiting', 'センサー待機中');
     motionTimer = setTimeout(() => {
-      if (!motionReceived) motionStatus.textContent = '傾きのデータを受信していません。ドラッグやスライダーで操作できます。';
+      if (!motionReceived) setSensorState('idle', 'センサー未検出');
     }, 2500);
   } catch (_) {
-    motionStatus.textContent = '傾きセンサーを開始できませんでした。ドラッグやスライダーで操作できます。';
+    setSensorState('idle', 'センサー非対応');
   } finally {
     motionButton.disabled = false;
   }
@@ -145,34 +133,27 @@ document.querySelector('#reset').addEventListener('click', () => {
   if (motionEnabled) call('ResetTilt');
   else setManual(0, 0);
 });
-for (const slider of [xControl, yControl]) {
-  slider.addEventListener('input', () => {
-    stopMotion();
-    setManual(Number(xControl.value), Number(yControl.value));
-  });
-}
-for (const button of lights) {
-  button.addEventListener('click', () => {
-    for (const other of lights) other.setAttribute('aria-pressed', String(other === button));
-    call('SetLighting', Number(button.dataset.light));
-  });
-}
 canvas.addEventListener('pointerdown', event => {
-  if (!instance || !event.isPrimary || event.button !== 0) return;
-  stopMotion();
+  if (!instance || !event.isPrimary || event.button !== 0 || motionEnabled) return;
   canvas.setPointerCapture(event.pointerId);
-  drag = {id: event.pointerId, x: event.clientX, y: event.clientY,
-    startX: Number(xControl.value), startY: Number(yControl.value)};
+  drag = {id: event.pointerId, x: event.clientX, y: event.clientY, startX: manualX, startY: manualY};
 });
 canvas.addEventListener('pointermove', event => {
   if (drag?.id !== event.pointerId) return;
-  const sensitivity = 2 * tiltLimit / canvas.clientWidth;
+  const sensitivity = 2 * tiltLimit / Math.min(innerWidth, innerHeight);
   setManual(drag.startX + sensitivity*(event.clientX-drag.x),
     drag.startY + sensitivity*(drag.y-event.clientY));
 });
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   canvas.addEventListener(type, () => { drag = null; });
 }
+canvas.addEventListener('keydown', event => {
+  if (!instance || motionEnabled) return;
+  const delta = {ArrowLeft: [-2,0], ArrowRight: [2,0], ArrowUp: [0,2], ArrowDown: [0,-2]}[event.key];
+  if (!delta) return;
+  event.preventDefault();
+  setManual(manualX + delta[0], manualY + delta[1]);
+});
 const build = 'Build/';
 const buildVersion = '1.1';
 const versioned = file => build + file + '?v=' + buildVersion;
