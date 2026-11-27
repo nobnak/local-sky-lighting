@@ -98,17 +98,19 @@ blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1
 Use `--isolated` with a separate output directory to disable all other fixtures
 for the same comparison. The saved world remains active.
 
-### Unity Web comparison viewer
+### Unity Web phone-tilt viewer
 
-The Unity scene displays the Blender sweep directly. The frame changes with
-horizontal drag or the angle slider, while the three size buttons keep the
-selected angle. Rebuild the frame atlases with Python and Pillow after changing
-the Blender sweep, then run the Unity Web build method.
+The camera shows the plate face-on. Phone orientation sets a relative light
+direction from the first sensor sample, or from the pose at the recenter
+button. Drag and the two sliders provide a manual fallback. Unity interpolates
+a five-by-five grid of frontal Blender renders over ±24° per axis. The size
+buttons use matching directions across all three light configurations.
 
 ```powershell
-python Tools/PlateReference/pack_light_size_frames.py C:/path/to/light-size-study Assets/PlateLightStudy/Atlases
+blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/render_phone_tilt.py -- --output C:/path/to/phone-tilt
+python Tools/PlateReference/pack_phone_tilt_frames.py C:/path/to/phone-tilt Assets/PlateLightStudy/Atlases
 Unity.exe -batchmode -quit -projectPath C:/path/to/local-sky-lighting -buildTarget WebGL -executeMethod LocalSkyLighting.PlateLightStudyBuild.BuildWeb
 ```
 
-Serve `docs/` over HTTP and open `plate-light-study/`. The scene uses 11
-pre-rendered camera angles from −8° to +8°.
+GitHub Pages serves the viewer from `docs/plate-light-study/`. Sensor access
+uses HTTPS and may require permission when the motion button is pressed.
