@@ -32,3 +32,8 @@ blender -b C:/path/to/output/plate-materials.blend --python-exit-code 1 --python
 
 The output contains one PNG sequence per treatment. Use `--frames 3` for the
 endpoints and center, or omit it for the 17-frame sweep.
+
+Blender 4.5 applies thin-film interference to dielectrics. The thin-film
+treatment mixes a separate dielectric reflection with the metallic substrate.
+Use `--variant film-control --frames 3` for the matched dielectric comparison
+with the film disabled.

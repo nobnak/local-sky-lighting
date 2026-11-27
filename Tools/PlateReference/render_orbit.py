@@ -10,6 +10,7 @@ from mathutils import Quaternion, Vector
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--frames", type=int, default=17)
+parser.add_argument("--variant", choices=("baseline", "rounded", "thin-film", "colored-lights", "film-control"))
 args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 if args.frames < 3 or args.frames % 2 == 0:
     parser.error("--frames must be odd and at least 3")
@@ -84,8 +85,29 @@ def refine_strikes(material):
     graph.links.new(by_label(material, "Unit strike normal").outputs["Vector"], relief.inputs["Normal"])
     graph.links.new(relief.outputs["Normal"], fine_bump.inputs["Normal"])
 
-def give_film(material):
+def coated_finish(material, with_film):
     graph = material.node_tree
+    surface = graph.nodes.get("Material Output")
+    substrate = surface.inputs["Surface"].links[0].from_socket
+    dielectric = graph.nodes.new("ShaderNodeBsdfPrincipled")
+    dielectric.label = "Dielectric interface above the warm substrate"
+    dielectric.location = (1020, -700)
+    dielectric.inputs["Base Color"].default_value = (0, 0, 0, 1)
+    dielectric.inputs["IOR"].default_value = 2.15
+    dielectric.inputs["Roughness"].default_value = .11
+    graph.links.new(by_label(material, "Rounded slope inside each strike").outputs["Normal"],
+                    dielectric.inputs["Normal"])
+    layers = graph.nodes.new("ShaderNodeMixShader")
+    layers.label = "Reflection from substrate and dielectric interface"
+    layers.location = (1340, -125)
+    layers.inputs[0].default_value = .34
+    graph.links.new(substrate, layers.inputs[1])
+    graph.links.new(dielectric.outputs["BSDF"], layers.inputs[2])
+    graph.links.new(layers.outputs["Shader"], surface.inputs["Surface"])
+    surface.location = (1560, 215)
+
+    if not with_film:
+        return
     thickness = graph.nodes.new("ShaderNodeMapRange")
     thickness.label = "Patchy thin film thickness in nm"
     thickness.location = (530, -600)
@@ -93,9 +115,8 @@ def give_film(material):
     thickness.inputs["To Max"].default_value = 425
     graph.links.new(by_label(material, "Variation across groups of strikes").outputs["Fac"],
                     thickness.inputs["Value"])
-    polished = graph.nodes.get("Principled BSDF")
-    polished.inputs["Thin Film IOR"].default_value = 1.5
-    graph.links.new(thickness.outputs["Result"], polished.inputs["Thin Film Thickness"])
+    dielectric.inputs["Thin Film IOR"].default_value = 1.5
+    graph.links.new(thickness.outputs["Result"], dielectric.inputs["Thin Film Thickness"])
 
 def add_colored_reflections():
     # Keep these sources fixed in the scene throughout the camera sweep.
@@ -122,11 +143,20 @@ rounded.name = "Rounded strikes with internal variation"
 refine_strikes(rounded)
 film = rounded.copy()
 film.name = "Rounded strikes with a thin film"
-give_film(film)
+coated_finish(film, with_film=True)
 
 # Run the colored rig last so all other renders retain the original lighting.
-for label, material in (("baseline", existing), ("rounded", rounded), ("thin-film", film),
-                        ("colored-lights", rounded)):
+variants = (("baseline", existing), ("rounded", rounded), ("thin-film", film),
+            ("colored-lights", rounded))
+if args.variant == "film-control":
+    control = rounded.copy()
+    control.name = "Rounded strikes with an unfilmed dielectric interface"
+    coated_finish(control, with_film=False)
+    variants = (("film-control", control),)
+
+for label, material in variants:
+    if args.variant and label != args.variant:
+        continue
     if label == "colored-lights":
         add_colored_reflections()
     plate.data.materials[0] = material
