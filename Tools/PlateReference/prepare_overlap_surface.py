@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 
-def stamp_surface(directory, size=1536):
+def stamp_surface(directory, size=1536, unity_assets=None):
     rng = np.random.default_rng(6481)
     extent = 3.24
     spacing = extent / size
@@ -78,12 +78,28 @@ def stamp_surface(directory, size=1536):
     directory.mkdir(parents=True, exist_ok=True)
     surface.astype("<f2").tofile(directory / "overlap-surface.rgba16f")
     direction.tofile(directory / "overlap-grain.rgba8")
+    if unity_assets is not None:
+        write_unity_maps(unity_assets, surface, direction)
     normal_preview = np.dstack((.5 + slope * 2, finish))
     Image.fromarray(np.rint(np.clip(normal_preview[::-1], 0, 1) * 255).astype(np.uint8)).save(
         directory / "surface-preview.png")
 
 
+def write_unity_maps(directory, surface, direction):
+    import OpenEXR
+
+    directory.mkdir(parents=True, exist_ok=True)
+    # File images start at the top. Unity's raw Texture2D data starts at the bottom.
+    top_first = surface[::-1].astype(np.float16)
+    channels = {name: np.ascontiguousarray(top_first[..., i]) for i, name in enumerate("RGBA")}
+    with OpenEXR.File({"compression": OpenEXR.ZIP_COMPRESSION}, channels) as image:
+        image.write(str(directory / "Overlapping strikes.exr"))
+    Image.fromarray(direction[::-1]).save(directory / "Overlapping scratch direction.png")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
-    stamp_surface(parser.parse_args().directory)
+    parser.add_argument("--unity-assets", type=Path, help="Also write Unity EXR and PNG assets (requires OpenEXR)")
+    args = parser.parse_args()
+    stamp_surface(args.directory, unity_assets=args.unity_assets)

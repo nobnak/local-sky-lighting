@@ -103,7 +103,11 @@ namespace LocalSkyLighting {
             }
             var grain = AssetDatabase.LoadAssetAtPath<Texture2D>(grainPath);
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(Realtime + "/PlateSurface.shader");
-            var bowl = GetMaterial("Amber bowl", shader, surface, grain, false);
+            var overlapSurface = AssetDatabase.LoadAssetAtPath<Texture2D>(Realtime + "/Overlapping strikes.exr");
+            var overlapGrain = AssetDatabase.LoadAssetAtPath<Texture2D>(Realtime + "/Overlapping scratch direction.png");
+            if (overlapSurface == null || overlapGrain == null)
+                throw new InvalidOperationException("Missing baked overlapping-strike textures.");
+            var bowl = GetMaterial("Amber bowl", shader, overlapSurface, overlapGrain, false);
             var rim = GetMaterial("Amber rim", shader, surface, grain, true);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene);

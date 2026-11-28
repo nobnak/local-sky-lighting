@@ -102,9 +102,9 @@ for the same comparison. The saved world remains active.
 
 Open `Assets/PlateLightStudy/PlateLightStudy.unity` to preview the fixed camera,
 bowl and rim meshes, and the editable `Amber bowl` material. Its surface map
-stores the normal slope in red and green and the polish mask in blue. The
-scratch direction map is estimated from the local surface structure and
-controls the orientation of the anisotropic lobe over the sharper mirror lobe.
+stores the normal slope in red and green and the finish in blue. The
+scratch direction map follows the last tool face at each point and controls
+the orientation of the anisotropic lobe over the sharper mirror lobe.
 The shader integrates the mirror and anisotropic reflection lobes over
 the rectangular emitters in the original light rig. A shared projection
 mask controls where these reflections appear and how bright they are.
@@ -121,7 +121,7 @@ Append `&phase=4`, `&phase=9`, or `&phase=14` to hold the compact, broad,
 or dimmed lighting used in the comparison. `&phase=cycle` sweeps through
 those states. These timings are a look study based on the reference video.
 
-To regenerate the broken grooves, run `refine_strike_texture.py` with the
+To regenerate the original material's broken grooves, run `refine_strike_texture.py` with the
 original packed EXR, the scratch-direction PNG, and the destination EXR.
 The script uses OpenEXR, NumPy, SciPy, and Pillow and keeps the polish mask.
 
@@ -205,8 +205,14 @@ blender.exe -b --python-exit-code 1 --python Tools/PlateReference/encode_orbit.p
 
 ### Overlapping strike comparison
 
+The plate scene uses the baked overlapping strike maps on `Amber bowl`, with
+continuous metal reflection and the approved -2.5 EV bowl exposure. To rebake
+the Unity EXR and PNG, install OpenEXR for Python and add
+`--unity-assets Assets/PlateLightStudy/Realtime` to the texture generator.
+The original bowl material is preserved as `Amber bowl Reference` for A and B.
+
 The Unity capture renders three materials from the saved plate scene. A uses
-the current material. B uses the same maps with continuous metal reflection
+the original bowl material. B uses the same maps with continuous metal reflection
 on the bowl. C uses the same response as B with successively stamped tool
 faces. Each stamp replaces the slope, finish, and scratch direction inside
 its footprint. Slopes are derived from each face before stamping so the

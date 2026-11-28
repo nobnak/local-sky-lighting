@@ -24,6 +24,8 @@ namespace LocalSkyLighting {
             var camera = (Camera)setup.FindProperty("plateCamera").objectReferenceValue;
             var original = plate.sharedMaterials;
             var captureMaterials = Array.ConvertAll(original, material => new Material(material));
+            captureMaterials[0].CopyPropertiesFromMaterial(AssetDatabase.LoadAssetAtPath<Material>(
+                "Assets/PlateLightStudy/Realtime/Amber bowl Reference.mat"));
             foreach (var material in captureMaterials)
                 material.SetFloat("_Exposure", material.GetFloat("_Exposure") * exposureScale);
             var current = captureMaterials[0];

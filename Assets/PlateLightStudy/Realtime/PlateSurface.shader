@@ -7,7 +7,7 @@ Shader "Local Sky Lighting/Struck Plate" {
         _RoughnessScale ("Roughness scale", Range(0.5, 2)) = 1
         _Anisotropy ("Anisotropy", Range(0, 0.9)) = 0.7
         _Exposure ("Exposure multiplier", Range(0.05, 2)) = 0.55
-        [Toggle] _ContinuousMetal ("Continuous metal surface", Float) = 0
+        [ToggleUI] _ContinuousMetal ("Continuous metal surface", Float) = 0
         [Toggle] _Rim ("Rim material", Float) = 0
     }
     SubShader {
