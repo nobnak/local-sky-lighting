@@ -30,6 +30,7 @@ namespace LocalSkyLighting {
 
         Quaternion rigToPlate = Quaternion.identity;
         int lighting;
+        float zoom = 1f;
         Vector2 tilt;
         Quaternion phonePose;
         Quaternion neutralPose;
@@ -93,6 +94,13 @@ namespace LocalSkyLighting {
             }
 
             UpdateMouseDrag();
+            if (Application.isFocused && Mouse.current is { } mouse) {
+                var scroll = mouse.scroll.ReadValue().y;
+                if (InputSystem.settings.scrollDeltaBehavior == InputSettings.ScrollDeltaBehavior.KeepPlatformSpecificInputRange &&
+                    (Application.platform == RuntimePlatform.WindowsPlayer ||
+                     Application.platform == RuntimePlatform.WindowsEditor)) scroll /= 120f;
+                if (scroll != 0) ZoomBy(Mathf.Pow(ZoomStep, scroll));
+            }
         }
 
         void OnGUI() {
@@ -112,7 +120,7 @@ namespace LocalSkyLighting {
 #endif
 
         void LateUpdate() {
-            if (plateCamera != null) plateCamera.orthographicSize = 3.1f / Mathf.Min(plateCamera.aspect, 640f / 382f);
+            if (plateCamera != null) plateCamera.orthographicSize = 3.1f / (Mathf.Min(plateCamera.aspect, 640f / 382f) * zoom);
             if (plate == null || (!lightingDirty && referencePhase != 0)) return;
             UpdateSpotlight();
             lightingDirty = false;
@@ -120,6 +128,11 @@ namespace LocalSkyLighting {
         #endregion
 
         #region public interface
+        [Preserve]
+        public void ZoomBy(float factor) {
+            if (float.IsFinite(factor) && factor > 0) zoom = Mathf.Clamp(zoom * factor, MinZoom, MaxZoom);
+        }
+
         [Preserve]
         public void SetLighting(int value) {
             lighting = Mathf.Clamp(value, 0, ProjectionRadii.Length - 1);
@@ -361,6 +374,9 @@ namespace LocalSkyLighting {
         static readonly int ProjectionFalloffScale = Shader.PropertyToID("_ProjectionFalloffScale");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
+        const float MinZoom = .75f;
+        const float MaxZoom = 3f;
+        const float ZoomStep = 1.15f;
         const int MaxEmitters = 9;
         static readonly float[] ProjectionRadii = { 1.78f, 1.18f, .47f };
         #endregion

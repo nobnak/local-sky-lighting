@@ -13,11 +13,6 @@ canvas {
   display: block; width: max(100vw, min(170vw, 167.54vh)); width: max(100vw, min(170vw, 167.54dvh));
   height: 100%; touch-action: none; cursor: move;
 }
-#light-size {
-  position: absolute; top: max(.75rem, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
-  border-radius: 999px; background: #191816ec; padding: .25rem .65rem;
-  pointer-events: none; white-space: nowrap;
-}
 #status { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); margin: 0; text-align: center; }
 #controls {
   position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
@@ -40,8 +35,7 @@ button:disabled { opacity: .55; }
 </head>
 <body>
 <main>
-  <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーでスポットライトの照射角を調整。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
-  <output id="light-size" hidden></output>
+  <canvas id="plate" aria-label="皿の反射。ピンチまたはプラス・マイナスキーでズーム。ドラッグまたは矢印キーで照明を操作" tabindex="0"></canvas>
   <p id="status" role="status">読み込み中…</p>
   <fieldset id="controls" aria-label="照明操作" disabled>
     <button type="button" id="motion" data-state="idle" aria-pressed="false" aria-live="polite">センサーを使う</button>
@@ -53,20 +47,16 @@ const canvas = document.querySelector('#plate');
 const controls = document.querySelector('#controls');
 const motionButton = document.querySelector('#motion');
 const statusText = document.querySelector('#status');
-const sizeLabel = document.querySelector('#light-size');
 const sensor = window.isSecureContext ? window.DeviceOrientationEvent : undefined;
 const needsSensorGesture = typeof sensor?.requestPermission === 'function';
 const tiltLimit = 24;
-const projectionSizes = [100, 66, 26];
-const pinchStep = 1.25;
+const zoomStep = 1.15;
 const touches = new Map();
 let instance;
 let drag = null;
 let manualX = 0;
 let manualY = 0;
 let motionListening = false;
-let lighting = 0;
-let sizeTimer;
 let pinchDistance = 0;
 let motionReceived = false;
 let motionTimer;
@@ -169,20 +159,9 @@ document.querySelector('#reset').addEventListener('click', () => {
   if (motionReceived) call('ResetTilt');
   else setManual(0, 0);
 });
-function changeLightSize(step) {
-  const next = Math.max(0, Math.min(projectionSizes.length - 1, lighting + step));
-  if (next === lighting) return;
-  lighting = next;
-  call('SetReferencePhase', -1);
-  call('SetLighting', lighting);
-  sizeLabel.textContent = '照射サイズ ' + projectionSizes[lighting] + '%';
-  sizeLabel.hidden = false;
-  clearTimeout(sizeTimer);
-  sizeTimer = setTimeout(() => { sizeLabel.hidden = true; }, 1000);
-}
 function touchDistance() {
   const [a, b] = touches.values();
-  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  return Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY));
 }
 canvas.addEventListener('pointerdown', event => {
   if (!instance || event.button !== 0) return;
@@ -205,10 +184,8 @@ canvas.addEventListener('pointermove', event => {
     if (touches.size > 1) {
       if (touches.size !== 2) return;
       const distance = touchDistance();
-      if (!pinchDistance || distance <= pinchDistance / pinchStep || distance >= pinchDistance * pinchStep) {
-        if (pinchDistance) changeLightSize(distance < pinchDistance ? 1 : -1);
-        pinchDistance = distance;
-      }
+      if (pinchDistance && distance !== pinchDistance) call('ZoomBy', distance / pinchDistance);
+      pinchDistance = distance;
       return;
     }
   }
@@ -227,7 +204,7 @@ canvas.addEventListener('keydown', event => {
   if (!instance) return;
   if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();
-    changeLightSize(event.key === '-' ? 1 : -1);
+    call('ZoomBy', event.key === '-' ? 1 / zoomStep : zoomStep);
     return;
   }
   if (motionReceived) return;
@@ -237,7 +214,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.13';
+const buildVersion = '2.14';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('{{{ LOADER_FILENAME }}}');

@@ -113,9 +113,9 @@ opening shot. Tilting the phone moves the mask and rotates the light rig.
 Turning the phone horizontally rotates the light rig around the plate normal
 in the opposite direction, keeping the plate and view fixed. Both motions use
 the phone pose captured at startup or by the reset button as their reference.
-Pinch chooses one of three nominal projection diameters. During interactive
-viewing, the mask tapers to zero at twice the nominal radius, keeping the
-original full-strength core. Drag and arrow keys provide a manual tilt fallback.
+Pinch or use the plus and minus keys to zoom the camera around the plate
+center (0.75×–3×). Drag and arrow keys provide a manual light tilt fallback.
+During interactive viewing the mask tapers to zero at twice the nominal radius.
 
 Append `&phase=4`, `&phase=9`, or `&phase=14` to hold the compact, broad,
 or dimmed lighting used in the comparison. `&phase=cycle` sweeps through
@@ -154,7 +154,8 @@ the Editor backend supports HDR output. On Windows, DirectX 11 supports HDR
 output in the Player, while DirectX 12 also supports it in the Editor.
 
 In the Windows Player, left-drag to tilt the plate. The light rig and
-camera stay fixed, and the plate stays tilted when you release.
+camera stay fixed during the drag, and the plate stays tilted when you release.
+Use the mouse wheel to zoom the camera (0.75×–3×).
 
 While the plate camera is outputting HDR, its runtime profile bypasses the
 SDR tone curve and retains Bloom and color grading. Returning to SDR restores
