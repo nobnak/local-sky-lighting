@@ -129,13 +129,16 @@ The `Plate Post-processing` profile applies Bloom, shadows and highlights
 grading, and ACES tone mapping for the SDR canvas. Append `&bloom=0` to the
 viewer URL to compare the same lighting and material with Bloom disabled.
 
-Export the mesh, surface map and light rig from the original Blender scene,
-then build the Unity Web viewer:
+The Web build uses the saved `PlateLightStudy` scene, including its camera
+post-processing setting and material adjustments. Build the viewer with:
 
 ```powershell
-blender -b C:/path/to/reference-study/reference-plate.blend --python-exit-code 1 --python Tools/PlateReference/export_unity_plate.py -- Assets/PlateLightStudy/Realtime
 Unity.exe -batchmode -quit -projectPath C:/path/to/local-sky-lighting -buildTarget WebGL -executeMethod LocalSkyLighting.PlateLightStudyBuild.BuildWeb
 ```
+
+To replace the geometry or light rig, export the Blender source with
+`Tools/PlateReference/export_unity_plate.py` and run **Local Sky Lighting →
+Build Struck Plate Scene** before building the viewer.
 
 GitHub Pages serves the viewer from `docs/plate-light-study/`. Sensor access
 uses HTTPS and browsers that require a gesture show a permission button.

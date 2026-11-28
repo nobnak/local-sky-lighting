@@ -35,7 +35,7 @@ Material:
     m_Floats:
     - _Anisotropy: 0.7
     - _ContinuousMetal: 1
-    - _Exposure: 0.13788582
+    - _Exposure: 0.42
     - _MirrorShare: 0.74
     - _Rim: 0
     - _RoughnessScale: 1

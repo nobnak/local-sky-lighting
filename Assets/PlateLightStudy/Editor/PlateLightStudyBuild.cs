@@ -32,8 +32,6 @@ namespace LocalSkyLighting {
         }
 
         public static void BuildWeb() {
-            CreateScene();
-
             var splash = PlayerSettings.SplashScreen.show;
             var compression = PlayerSettings.WebGL.compressionFormat;
             var fallback = PlayerSettings.WebGL.decompressionFallback;

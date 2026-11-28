@@ -237,7 +237,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.12';
+const buildVersion = '2.13';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('{{{ LOADER_FILENAME }}}');
