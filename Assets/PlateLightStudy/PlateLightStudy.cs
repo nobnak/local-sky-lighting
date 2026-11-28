@@ -28,6 +28,7 @@ namespace LocalSkyLighting {
         MaterialPropertyBlock properties;
         bool lightingDirty;
 
+        Quaternion rigToPlate = Quaternion.identity;
         int lighting;
         Vector2 tilt;
         Quaternion phonePose;
@@ -39,6 +40,8 @@ namespace LocalSkyLighting {
         InputAction mouseButton;
         Mouse dragMouse;
         Vector2 previousDragPosition;
+        Vector2 plateTilt;
+        Quaternion restingPlateRotation;
         bool hdrOutputActive;
         Tonemapping hdrTonemapping;
         VolumeProfile hdrProfile;
@@ -54,6 +57,7 @@ namespace LocalSkyLighting {
             lightingDirty = true;
 #if !UNITY_WEBGL || UNITY_EDITOR
             if (!Application.isPlaying) return;
+            if (plate != null) restingPlateRotation = plate.transform.localRotation;
             mouseButton = new InputAction(type: InputActionType.Button, binding: "<Mouse>/leftButton");
             mouseButton.performed += OnMousePressed;
             mouseButton.canceled += OnMouseReleased;
@@ -70,6 +74,9 @@ namespace LocalSkyLighting {
             dragMouse = null;
             mouseButton?.Dispose();
             mouseButton = null;
+            if (plateTilt != Vector2.zero && plate != null) plate.transform.localRotation = restingPlateRotation;
+            plateTilt = Vector2.zero;
+            rigToPlate = Quaternion.identity;
         }
 
         void OnApplicationFocus(bool focused) {
@@ -221,8 +228,25 @@ namespace LocalSkyLighting {
             var position = dragMouse.position.ReadValue();
             if (position == previousDragPosition) return;
             var degreesPerPixel = 2 * TiltLimit / Mathf.Max(1, Mathf.Min(Screen.width, Screen.height));
-            tilt = ClampTilt(tilt - (position - previousDragPosition) * degreesPerPixel);
+            SetPlateTilt(plateTilt + (position - previousDragPosition) * degreesPerPixel);
             previousDragPosition = position;
+        }
+
+        void SetPlateTilt(Vector2 angles) {
+            if (plate == null || plateCamera == null) return;
+            var nextTilt = ClampTilt(angles);
+            if (nextTilt == plateTilt) return;
+            plateTilt = nextTilt;
+            var plateTransform = plate.transform;
+            var cameraTransform = plateCamera.transform;
+            var parent = plateTransform.parent;
+            var up = parent != null ? parent.InverseTransformDirection(cameraTransform.up) : cameraTransform.up;
+            var right = parent != null ? parent.InverseTransformDirection(cameraTransform.right) : cameraTransform.right;
+            var orientation = Quaternion.AngleAxis(-plateTilt.x, up) * Quaternion.AngleAxis(plateTilt.y, right)
+                * restingPlateRotation;
+            plateTransform.localRotation = orientation;
+            // The shader evaluates the fixed rig in the rotating plate's local coordinates.
+            rigToPlate = Quaternion.Inverse(orientation) * restingPlateRotation;
             lightingDirty = true;
         }
         #endregion
@@ -274,14 +298,15 @@ namespace LocalSkyLighting {
         void UpdateSpotlight() {
             var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right)
                 * Quaternion.AngleAxis(-headingAngle, Vector3.forward);
+            var lightToPlate = rigToPlate * rotation;
             var count = emitters == null || emitters.Length == 0 ? 1 : Mathf.Min(emitters.Length, MaxEmitters);
             for (int i = 0; i < count; i++) {
                 var emitter = emitters == null || emitters.Length == 0 ? spotlight : emitters[i];
                 var area = Mathf.Max(emitter.width * emitter.height, .0001f);
-                positions[i] = rotation * emitter.position;
-                rights[i] = WithW(rotation * emitter.right, emitter.width * .5f);
-                ups[i] = WithW(rotation * emitter.up, emitter.height * .5f);
-                forwards[i] = rotation * emitter.forward;
+                positions[i] = lightToPlate * emitter.position;
+                rights[i] = WithW(lightToPlate * emitter.right, emitter.width * .5f);
+                ups[i] = WithW(lightToPlate * emitter.up, emitter.height * .5f);
+                forwards[i] = lightToPlate * emitter.forward;
                 radiances[i] = WithW(emitter.color * (emitter.power / (Mathf.PI * area)), area);
                 cones[i] = new Vector4(.559193f, .829038f, 0, 0);
             }
@@ -298,6 +323,8 @@ namespace LocalSkyLighting {
             var gain = referencePhase < 0 ? 1 : Mathf.Lerp(1, .25f, Mathf.SmoothStep(0, 1, (phase - 9) / 5));
             var shift = rotation * new Vector3(0, 0, 1.3f);
             properties.SetVector(Projection, new Vector4(shift.x, shift.y, radius, gain));
+            properties.SetVector(ProjectionRight, rigToPlate * Vector3.right);
+            properties.SetVector(ProjectionUp, rigToPlate * Vector3.up);
             properties.SetFloat(ProjectionFalloffScale, referencePhase < 0 ? 2f : 1f);
             plate.SetPropertyBlock(properties);
         }
@@ -329,6 +356,8 @@ namespace LocalSkyLighting {
         static readonly int BeamCones = Shader.PropertyToID("_BeamCones");
         static readonly int LightCount = Shader.PropertyToID("_LightCount");
         static readonly int Projection = Shader.PropertyToID("_Projection");
+        static readonly int ProjectionRight = Shader.PropertyToID("_ProjectionRight");
+        static readonly int ProjectionUp = Shader.PropertyToID("_ProjectionUp");
         static readonly int ProjectionFalloffScale = Shader.PropertyToID("_ProjectionFalloffScale");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
