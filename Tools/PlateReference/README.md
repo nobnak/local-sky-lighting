@@ -150,6 +150,9 @@ switching. The same button is available in the Game view in Play mode when
 the Editor backend supports HDR output. On Windows, DirectX 11 supports HDR
 output in the Player, while DirectX 12 also supports it in the Editor.
 
+In the Windows Player, left-drag the view to aim the light.
+The plate and camera stay fixed, and the aim persists when you release.
+
 While the plate camera is outputting HDR, its runtime profile bypasses the
 SDR tone curve and retains Bloom and color grading. Returning to SDR restores
 the saved tone mapping. The Unity Web viewer uses SDR display output.

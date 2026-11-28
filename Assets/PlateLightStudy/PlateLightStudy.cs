@@ -36,6 +36,9 @@ namespace LocalSkyLighting {
         float screenAngle;
         float headingAngle;
 #if !UNITY_WEBGL || UNITY_EDITOR
+        InputAction mouseButton;
+        Mouse dragMouse;
+        Vector2 previousDragPosition;
         bool hdrOutputActive;
         Tonemapping hdrTonemapping;
         VolumeProfile hdrProfile;
@@ -49,6 +52,13 @@ namespace LocalSkyLighting {
         void OnEnable() {
             properties = new MaterialPropertyBlock();
             lightingDirty = true;
+#if !UNITY_WEBGL || UNITY_EDITOR
+            if (!Application.isPlaying) return;
+            mouseButton = new InputAction(type: InputActionType.Button, binding: "<Mouse>/leftButton");
+            mouseButton.performed += OnMousePressed;
+            mouseButton.canceled += OnMouseReleased;
+            mouseButton.Enable();
+#endif
         }
 
         void OnValidate() => lightingDirty = true;
@@ -57,6 +67,13 @@ namespace LocalSkyLighting {
         void OnDisable() {
             RestoreSdrTonemapping();
             hdrOutputActive = false;
+            dragMouse = null;
+            mouseButton?.Dispose();
+            mouseButton = null;
+        }
+
+        void OnApplicationFocus(bool focused) {
+            if (!focused) dragMouse = null;
         }
 
         void Update() {
@@ -68,12 +85,7 @@ namespace LocalSkyLighting {
                 hdrOutputActive = active;
             }
 
-            var pointer = Mouse.current;
-            if (pointer == null || !pointer.leftButton.wasPressedThisFrame || !CanSwitchHdr(output) ||
-                output.HDRModeChangeRequested) return;
-            var position = pointer.position.ReadValue();
-            position.y = Screen.height - position.y;
-            if (HdrButtonRect.Contains(position)) output.RequestHDRModeChange(!output.active);
+            UpdateMouseDrag();
         }
 
         void OnGUI() {
@@ -183,6 +195,37 @@ namespace LocalSkyLighting {
         #endregion
 
 #if !UNITY_WEBGL || UNITY_EDITOR
+        #region mouse input
+        void OnMousePressed(InputAction.CallbackContext context) {
+            if (!Application.isFocused || context.control.device is not Mouse mouse) return;
+            var position = mouse.position.ReadValue();
+            if (!HdrButtonRect.Contains(new Vector2(position.x, Screen.height - position.y))) {
+                dragMouse = mouse;
+                previousDragPosition = position;
+                return;
+            }
+
+            var output = HDROutputSettings.main;
+            if (CanSwitchHdr(output) && !output.HDRModeChangeRequested)
+                output.RequestHDRModeChange(!output.active);
+        }
+
+        void OnMouseReleased(InputAction.CallbackContext context) {
+            UpdateMouseDrag();
+            dragMouse = null;
+        }
+
+        void UpdateMouseDrag() {
+            if (dragMouse == null || !Application.isFocused) return;
+            var position = dragMouse.position.ReadValue();
+            if (position == previousDragPosition) return;
+            var degreesPerPixel = 2 * TiltLimit / Mathf.Max(1, Mathf.Min(Screen.width, Screen.height));
+            tilt = ClampTilt(tilt - (position - previousDragPosition) * degreesPerPixel);
+            previousDragPosition = position;
+            lightingDirty = true;
+        }
+        #endregion
+
         #region display output
         bool CameraAllowsHdrOutput => plateCamera != null && plateCamera.allowHDR && plateCamera.targetDisplay == 0 &&
             plateCamera.targetTexture == null && plateCamera.GetUniversalAdditionalCameraData().allowHDROutput &&
