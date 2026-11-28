@@ -168,13 +168,16 @@ Unity Web build for this route.
 ### Fixed-light camera move, 0:36–0:47
 
 The [synchronized comparison](https://nobnak.github.io/local-sky-lighting/plate-orbit-comparison/)
-uses the official YouTube player as the clock. The Unity render starts at
-0:36, runs at 24 fps, and holds the existing light rig and exposure fixed at
-reference phase 12. `PlateOrbitCapture` contains the perspective camera path,
-approximated from the framing in the close-up. The sampled times and camera
-transforms are written to `frames/poses.csv`.
+uses the official YouTube player as the clock. Each Unity render starts at
+0:36 and runs at 24 fps. The page switches between the previous path, a
+camera orbit around the plate normal, and the same orbit with sharper
+reflections. All variants hold their rig and exposure fixed during capture.
+The orbit is a visual approximation of the close-up framing. Camera
+transforms and sample times are written to `poses.csv` in each output directory.
 
 ```powershell
-Unity.exe -batchmode -quit -force-d3d11 -projectPath C:/path/to/local-sky-lighting -executeMethod LocalSkyLighting.PlateOrbitCapture.Render -plateOrbitOutput C:/path/to/orbit/frames
+Unity.exe -batchmode -quit -force-d3d11 -projectPath C:/path/to/local-sky-lighting -executeMethod LocalSkyLighting.PlateOrbitCapture.Render -plateOrbitOutput C:/path/to/orbit
+Unity.exe -batchmode -quit -force-d3d11 -projectPath C:/path/to/local-sky-lighting -executeMethod LocalSkyLighting.PlateOrbitCapture.Render -plateOrbitOutput C:/path/to/tuned -plateOrbitTuned
 blender.exe -b --python-exit-code 1 --python Tools/PlateReference/encode_orbit.py -- C:/path/to/orbit
+blender.exe -b --python-exit-code 1 --python Tools/PlateReference/encode_orbit.py -- C:/path/to/tuned
 ```

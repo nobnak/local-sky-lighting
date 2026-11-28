@@ -4,7 +4,8 @@ import sys
 import bpy
 
 root = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
-frames = sorted((root / 'frames').glob('orbit-*.png'))
+folder = root / 'frames' if (root / 'frames').is_dir() else root
+frames = sorted(folder.glob('orbit-*.png'))
 assert len(frames) == 264, len(frames)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
