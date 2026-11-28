@@ -19,7 +19,7 @@ namespace LocalSkyLighting {
             var startHdr = PlayerSettings.useHDRDisplay;
             try {
                 PlayerSettings.allowHDRDisplaySupport = true;
-                PlayerSettings.useHDRDisplay = false;
+                PlayerSettings.useHDRDisplay = true;
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
                 var report = BuildPipeline.BuildPlayer(new[] { ScenePath }, path,
                     BuildTarget.StandaloneWindows64, BuildOptions.None);

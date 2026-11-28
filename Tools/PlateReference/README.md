@@ -143,7 +143,8 @@ uses HTTPS and browsers that require a gesture show a permission button.
 ### Native HDR output
 
 Use **Local Sky Lighting → Build Struck Plate for Windows** to build the
-current plate scene. The Player starts in SDR. Its lower-left button switches
+current plate scene with **Use HDR Display Output** enabled. The initial
+output mode depends on the display. The lower-left button switches
 output when the display, graphics backend, and driver support runtime HDR
 switching. The same button is available in the Game view in Play mode when
 the Editor backend supports HDR output. On Windows, DirectX 11 supports HDR
