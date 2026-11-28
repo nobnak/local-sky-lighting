@@ -62,6 +62,15 @@ namespace LocalSkyLighting {
             lightingDirty = true;
         }
 
+#if UNITY_EDITOR
+        public void ApplyFixedReferenceLighting(int phase) {
+            SetReferencePhase(phase);
+            ResetTilt();
+            UpdateSpotlight();
+            lightingDirty = false;
+        }
+#endif
+
         [Preserve]
         public void SetBloom(int value) {
             if (postProcessing != null && postProcessing.profile.TryGet<Bloom>(out var bloom))

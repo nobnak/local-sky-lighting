@@ -84,7 +84,9 @@ Shader "Local Sky Lighting/Struck Plate" {
             float4 Frag(Varyings input) : SV_Target {
                 float3 p = input.position;
                 float3 neutral = normalize(input.normal);
-                float3 view = normalize(mul((float3x3)unity_WorldToObject, UNITY_MATRIX_V[2].xyz));
+                float3 view = unity_OrthoParams.w > 0.5
+                    ? normalize(mul((float3x3)unity_WorldToObject, UNITY_MATRIX_V[2].xyz))
+                    : normalize(ObjSpaceViewDir(float4(p, 1)));
                 float2 uv = p.xy / 3.24 + 0.5;
                 float3 surface = tex2D(_Surface, uv).rgb;
                 float2 grainVector = tex2D(_ScratchDirection, uv).rg * 2 - 1;

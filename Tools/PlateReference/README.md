@@ -164,3 +164,17 @@ The Blender frames are scene-linear half-float OpenEXR. The three 5×5 atlases
 use lossy DWAA compression at level 20 to retain HDR range with a smaller web
 payload. The page loads its pinned Three.js modules from jsDelivr and needs no
 Unity Web build for this route.
+
+### Fixed-light camera move, 0:36–0:47
+
+The [synchronized comparison](https://nobnak.github.io/local-sky-lighting/plate-orbit-comparison/)
+uses the official YouTube player as the clock. The Unity render starts at
+0:36, runs at 24 fps, and holds the existing light rig and exposure fixed at
+reference phase 12. `PlateOrbitCapture` contains the perspective camera path,
+approximated from the framing in the close-up. The sampled times and camera
+transforms are written to `frames/poses.csv`.
+
+```powershell
+Unity.exe -batchmode -quit -force-d3d11 -projectPath C:/path/to/local-sky-lighting -executeMethod LocalSkyLighting.PlateOrbitCapture.Render -plateOrbitOutput C:/path/to/orbit/frames
+blender.exe -b --python-exit-code 1 --python Tools/PlateReference/encode_orbit.py -- C:/path/to/orbit
+```
