@@ -7,6 +7,7 @@ Shader "Local Sky Lighting/Struck Plate" {
         _RoughnessScale ("Roughness scale", Range(0.5, 2)) = 1
         _Anisotropy ("Anisotropy", Range(0, 0.9)) = 0.7
         _Exposure ("Exposure multiplier", Range(0.05, 2)) = 0.55
+        [Toggle] _ContinuousMetal ("Continuous metal surface", Float) = 0
         [Toggle] _Rim ("Rim material", Float) = 0
     }
     SubShader {
@@ -24,6 +25,7 @@ Shader "Local Sky Lighting/Struck Plate" {
 
             sampler2D _Surface, _ScratchDirection;
             float _SlopeStrength, _RoughnessScale, _Anisotropy, _Exposure, _Rim, _MirrorShare;
+            float _ContinuousMetal;
             int _LightCount;
             float4 _Projection;
             float _ProjectionFalloffScale;
@@ -103,7 +105,7 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float3 bodyColor = lerp(float3(0.37, 0.104, 0.035), float3(0.071, 0.012, 0.015), edge);
                 bodyColor = lerp(bodyColor, float3(0.062, 0.020, 0.018), _Rim);
                 float3 alloy = lerp(float3(0.79, 0.53, 0.20), float3(0.19, 0.046, 0.031), edge);
-                float polished = lerp(0.01, 0.89, surface.b) * (1 - _Rim);
+                float polished = lerp(lerp(0.01, 0.89, surface.b), 1, _ContinuousMetal) * (1 - _Rim);
                 float mirrorRoughness = lerp(0.24, 0.033, surface.b) * _RoughnessScale;
                 float2 mirrorAlpha = RoughnessAxes(mirrorRoughness, 0);
                 float2 scratchAlpha = RoughnessAxes(lerp(0.31, 0.105, surface.b) * _RoughnessScale,

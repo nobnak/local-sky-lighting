@@ -127,9 +127,10 @@ namespace LocalSkyLighting {
         }
 
 #if UNITY_EDITOR
-        public void ApplyFixedReferenceLighting(int phase) {
+        public void ApplyFixedReferenceLighting(int phase, Vector2 manualTilt = default) {
             SetReferencePhase(phase);
             ResetTilt();
+            tilt = ClampTilt(manualTilt);
             UpdateSpotlight();
             lightingDirty = false;
         }
