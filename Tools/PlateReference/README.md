@@ -109,9 +109,11 @@ The shader integrates the mirror and anisotropic reflection lobes over
 the rectangular emitters in the original light rig. A shared projection
 mask controls where these reflections appear and how bright they are.
 The view is fixed at 24 degrees from the plate normal to approximate the
-opening shot. Tilt moves the mask and rotates the rig. Pinch chooses
-one of three projection diameters, and drag and arrow keys provide a
-manual tilt fallback.
+opening shot. Tilting the phone moves the mask and rotates the light rig.
+Turning the phone horizontally orbits the camera around the dish. Both
+motions use the phone pose captured at startup or by the reset button as
+their reference. Pinch chooses one of three projection diameters. Drag and
+arrow keys provide a manual tilt fallback.
 
 Append `&phase=4`, `&phase=9`, or `&phase=14` to hold the compact, broad,
 or dimmed lighting used in the comparison. `&phase=cycle` sweeps through

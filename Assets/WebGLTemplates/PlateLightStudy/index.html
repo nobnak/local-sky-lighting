@@ -45,7 +45,7 @@ button:disabled { opacity: .55; }
   <p id="status" role="status">読み込み中…</p>
   <fieldset id="controls" aria-label="照明操作" disabled>
     <button type="button" id="motion" data-state="idle" aria-pressed="false" aria-live="polite">センサーを使う</button>
-    <button type="button" id="reset" aria-label="今の向きを照明の基準にする">基準に戻す</button>
+    <button type="button" id="reset" aria-label="今の傾きと向きを基準にする">基準に戻す</button>
   </fieldset>
 </main>
 <script>
@@ -71,6 +71,9 @@ let pinchDistance = 0;
 let motionReceived = false;
 let motionTimer;
 let lastPoseTime = -Infinity;
+let headingTracking = null;
+let lastAlpha = 0;
+let alphaOffset = 0;
 function call(method, value) {
   if (!instance) return;
   if (value === undefined) instance.SendMessage('PlateLightStudy', method);
@@ -112,15 +115,24 @@ function onPose(event) {
     motionReceived = true;
     drag = null;
     lastPoseTime = -Infinity;
+    headingTracking = null;
+    lastAlpha = alphaOffset = 0;
     call('BeginMotion');
-    setSensorState('running', 'センサー動作中');
     clearTimeout(motionTimer);
   }
   const time = performance.now();
   if (time - lastPoseTime < 32) return;
   lastPoseTime = time;
+  const hasHeading = Number.isFinite(event.alpha);
+  if (hasHeading && headingTracking === false) alphaOffset = lastAlpha - event.alpha;
+  if (hasHeading) lastAlpha = event.alpha + alphaOffset;
+  if (headingTracking !== hasHeading) {
+    headingTracking = hasHeading;
+    setSensorState('running', hasHeading ? 'センサー動作中' : '傾きのみ動作中');
+  }
   call('SetPhonePose', JSON.stringify({
-    alpha: Number.isFinite(event.alpha) ? event.alpha : 0,
+    alpha: lastAlpha,
+    headingUnavailable: !hasHeading,
     beta: event.beta,
     gamma: event.gamma,
     screen: window.screen.orientation?.angle ?? window.orientation ?? 0
@@ -129,6 +141,7 @@ function onPose(event) {
 motionButton.addEventListener('click', async () => {
   if (motionReceived) {
     stopMotion();
+    call('BeginMotion');
     setSensorState('idle', 'センサーを使う');
     setManual(0, 0);
     return;
@@ -224,7 +237,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.8';
+const buildVersion = '2.9';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('{{{ LOADER_FILENAME }}}');

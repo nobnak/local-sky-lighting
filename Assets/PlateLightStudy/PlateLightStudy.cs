@@ -31,17 +31,40 @@ namespace LocalSkyLighting {
         Quaternion neutralPose;
         bool hasPose;
         float screenAngle;
+        float orbitAngle;
+        bool cameraDirty;
+        bool hasCameraHome;
+        Vector3 cameraHomePosition;
+        Quaternion cameraHomeRotation;
 
         #region Unity lifecycle
         void OnEnable() {
             properties = new MaterialPropertyBlock();
             lightingDirty = true;
+            if (!Application.isPlaying || plateCamera == null) return;
+            cameraHomePosition = plateCamera.transform.position;
+            cameraHomeRotation = plateCamera.transform.rotation;
+            hasCameraHome = true;
+            cameraDirty = true;
+        }
+
+        void OnDisable() {
+            if (hasCameraHome && plateCamera != null)
+                plateCamera.transform.SetPositionAndRotation(cameraHomePosition, cameraHomeRotation);
+            hasCameraHome = false;
         }
 
         void OnValidate() => lightingDirty = true;
 
         void LateUpdate() {
             if (plateCamera != null) plateCamera.orthographicSize = 3.1f / Mathf.Min(plateCamera.aspect, 640f / 382f);
+            if (hasCameraHome && cameraDirty && plateCamera != null) {
+                var orbit = Quaternion.AngleAxis(orbitAngle, Vector3.forward);
+                var center = plate != null ? plate.transform.position : transform.position;
+                plateCamera.transform.SetPositionAndRotation(center + orbit * (cameraHomePosition - center),
+                    orbit * cameraHomeRotation);
+                cameraDirty = false;
+            }
             if (plate == null || (!lightingDirty && referencePhase != 0)) return;
             UpdateSpotlight();
             lightingDirty = false;
@@ -87,14 +110,15 @@ namespace LocalSkyLighting {
         [Preserve]
         public void BeginMotion() {
             hasPose = false;
-            tilt = Vector2.zero;
-            lightingDirty = true;
+            ResetTilt();
         }
 
         [Preserve]
         public void ResetTilt() {
             if (hasPose) neutralPose = phonePose;
             tilt = Vector2.zero;
+            orbitAngle = 0;
+            cameraDirty = true;
             lightingDirty = true;
         }
 
@@ -110,9 +134,22 @@ namespace LocalSkyLighting {
                 return;
             }
 
-            var originalNormal = Quaternion.Inverse(phonePose) * (neutralPose * Vector3.forward);
-            tilt = ClampTilt(new Vector2(Mathf.Atan2(originalNormal.x, originalNormal.z),
+            // Split the relative pose into world-vertical twist and residual tilt.
+            var relative = phonePose * Quaternion.Inverse(neutralPose);
+            if (!input.headingUnavailable && relative.z * relative.z + relative.w * relative.w > .0001f) {
+                var heading = Mathf.DeltaAngle(0, 2 * Mathf.Atan2(relative.z, relative.w) * Mathf.Rad2Deg);
+                if (Mathf.Abs(Mathf.DeltaAngle(orbitAngle, heading)) > .001f) {
+                    orbitAngle = heading;
+                    cameraDirty = true;
+                }
+            }
+
+            var poseWithoutHeading = Quaternion.AngleAxis(-orbitAngle, Vector3.forward) * phonePose;
+            var originalNormal = Quaternion.Inverse(poseWithoutHeading) * (neutralPose * Vector3.forward);
+            var nextTilt = ClampTilt(new Vector2(Mathf.Atan2(originalNormal.x, originalNormal.z),
                 Mathf.Atan2(originalNormal.y, originalNormal.z)) * Mathf.Rad2Deg);
+            if ((nextTilt - tilt).sqrMagnitude <= .000001f) return;
+            tilt = nextTilt;
             lightingDirty = true;
         }
         #endregion
@@ -158,7 +195,10 @@ namespace LocalSkyLighting {
         struct ManualTilt { public float x, y; }
 
         [Serializable]
-        struct DevicePose { public float alpha, beta, gamma, screen; }
+        struct DevicePose {
+            public float alpha, beta, gamma, screen;
+            public bool headingUnavailable;
+        }
 
         [Serializable]
         public struct AreaLight {
