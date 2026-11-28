@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Globalization;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -14,14 +15,19 @@ namespace LocalSkyLighting {
             var args = Environment.GetCommandLineArgs();
             var output = Path.GetFullPath(Argument(args, "-strikeComparisonOutput"));
             var maps = Path.GetFullPath(Argument(args, "-strikeComparisonMaps"));
+            var exposureScale = ExposureScale(args);
             var frameCount = Array.IndexOf(args, "-strikeComparisonPreview") >= 0 ? 5 : FullFrameCount;
             EditorSceneManager.OpenScene("Assets/PlateLightStudy/PlateLightStudy.unity");
             var study = Object.FindAnyObjectByType<PlateLightStudy>();
             using var setup = new SerializedObject(study);
             var plate = (MeshRenderer)setup.FindProperty("plate").objectReferenceValue;
             var camera = (Camera)setup.FindProperty("plateCamera").objectReferenceValue;
-            var original = plate.sharedMaterial;
-            var metal = new Material(original);
+            var original = plate.sharedMaterials;
+            var captureMaterials = Array.ConvertAll(original, material => new Material(material));
+            foreach (var material in captureMaterials)
+                material.SetFloat("_Exposure", material.GetFloat("_Exposure") * exposureScale);
+            var current = captureMaterials[0];
+            var metal = new Material(current);
             metal.SetFloat("_ContinuousMetal", 1);
             var struck = new Material(metal);
             var surface = LoadTexture(maps, "overlap-surface.rgba16f", TextureFormat.RGBAHalf);
@@ -36,11 +42,13 @@ namespace LocalSkyLighting {
                 camera.aspect = (float)Width / Height;
                 camera.orthographicSize = 1.82f;
                 var request = new UniversalRenderPipeline.SingleCameraRequest { destination = target };
-                var variants = new[] { original, metal, struck };
-                Capture(output, study, plate, camera, request, frame, variants, frameCount, orbit: false);
-                Capture(output, study, plate, camera, request, frame, variants, frameCount, orbit: true);
+                var variants = new[] { current, metal, struck };
+                Capture(output, study, plate, camera, request, frame, captureMaterials, variants, frameCount, orbit: false);
+                Capture(output, study, plate, camera, request, frame, captureMaterials, variants, frameCount, orbit: true);
             } finally {
-                plate.sharedMaterial = original;
+                plate.sharedMaterials = original;
+                captureMaterials[0] = current;
+                foreach (var material in captureMaterials) Object.DestroyImmediate(material);
                 RenderTexture.active = previous;
                 Object.DestroyImmediate(frame);
                 Object.DestroyImmediate(target);
@@ -54,7 +62,8 @@ namespace LocalSkyLighting {
 
         #region capture
         static void Capture(string output, PlateLightStudy study, MeshRenderer plate, Camera camera,
-            UniversalRenderPipeline.SingleCameraRequest request, Texture2D frame, Material[] variants,
+            UniversalRenderPipeline.SingleCameraRequest request, Texture2D frame, Material[] captureMaterials,
+            Material[] variants,
             int frameCount, bool orbit) {
             var directory = Path.Combine(output, orbit ? "orbit" : "light");
             Directory.CreateDirectory(directory);
@@ -69,7 +78,8 @@ namespace LocalSkyLighting {
                 camera.transform.SetPositionAndRotation(cameraRotation * new Vector3(0, 0, -4.27f), cameraRotation);
                 study.ApplyFixedReferenceLighting(-1, tilt);
                 for (var variant = 0; variant < variants.Length; variant++) {
-                    plate.sharedMaterial = variants[variant];
+                    captureMaterials[0] = variants[variant];
+                    plate.sharedMaterials = captureMaterials;
                     RenderPipeline.SubmitRenderRequest(camera, request);
                     RenderTexture.active = request.destination;
                     frame.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
@@ -90,6 +100,17 @@ namespace LocalSkyLighting {
             texture.SetPixelData(File.ReadAllBytes(Path.Combine(directory, fileName)), 0);
             texture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
             return texture;
+        }
+
+        static float ExposureScale(string[] args) {
+            const string flag = "-strikeComparisonExposureEV";
+            if (Array.IndexOf(args, flag) < 0) return 1;
+            var value = Argument(args, flag);
+            if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var ev) ||
+                !float.IsFinite(ev) || ev < -16 || ev > 16)
+                throw new ArgumentException($"Specify {flag} in EV, between -16 and 16.");
+            Debug.Log(FormattableString.Invariant($"Capture exposure: {ev:+0.##;-0.##;0} EV"));
+            return Mathf.Pow(2, ev);
         }
 
         static string Argument(string[] args, string flag) {

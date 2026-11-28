@@ -218,6 +218,8 @@ pass fixes the neutral light rig and orbits the camera around the plate's
 normal. Both passes use the same exposure and orthographic framing for all
 three materials. The capture uses the saved camera post-processing setting.
 The comparison materials are created for the capture and discarded on exit.
+Use `-strikeComparisonExposureEV -2.5` to lower all three variants by the
+same 2.5 stops before the render is written to SDR. The default is 0 EV.
 
 ```powershell
 python Tools/PlateReference/prepare_overlap_surface.py C:/path/to/maps
