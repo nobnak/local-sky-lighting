@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.Scripting;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+#if !UNITY_WEBGL || UNITY_EDITOR
+using UnityEngine.InputSystem;
+#endif
 
 namespace LocalSkyLighting {
     [ExecuteAlways]
@@ -32,6 +35,15 @@ namespace LocalSkyLighting {
         bool hasPose;
         float screenAngle;
         float headingAngle;
+#if !UNITY_WEBGL || UNITY_EDITOR
+        bool hdrOutputActive;
+        Tonemapping hdrTonemapping;
+        VolumeProfile hdrProfile;
+        TonemappingMode sdrTonemappingMode;
+        bool sdrTonemappingActive;
+        bool sdrTonemappingOverride;
+        bool addedTonemapping;
+#endif
 
         #region Unity lifecycle
         void OnEnable() {
@@ -40,6 +52,45 @@ namespace LocalSkyLighting {
         }
 
         void OnValidate() => lightingDirty = true;
+
+#if !UNITY_WEBGL || UNITY_EDITOR
+        void OnDisable() {
+            RestoreSdrTonemapping();
+            hdrOutputActive = false;
+        }
+
+        void Update() {
+            if (!Application.isPlaying) return;
+            var output = HDROutputSettings.main;
+            var active = CameraAllowsHdrOutput && output.available && output.active;
+            if (active != hdrOutputActive) {
+                SetHdrTonemapping(active);
+                hdrOutputActive = active;
+            }
+
+            var pointer = Mouse.current;
+            if (pointer == null || !pointer.leftButton.wasPressedThisFrame || !CanSwitchHdr(output) ||
+                output.HDRModeChangeRequested) return;
+            var position = pointer.position.ReadValue();
+            position.y = Screen.height - position.y;
+            if (HdrButtonRect.Contains(position)) output.RequestHDRModeChange(!output.active);
+        }
+
+        void OnGUI() {
+            if (!Application.isPlaying) return;
+            var output = HDROutputSettings.main;
+            var canSwitch = CanSwitchHdr(output);
+            var pending = canSwitch && output.HDRModeChangeRequested;
+            var label = hdrOutputActive ? "HDR  >  SDR" : "SDR  >  HDR";
+            if (!canSwitch) label = hdrOutputActive ? "HDR output" : "SDR (HDR unavailable)";
+            else if (pending) label = "Switching output...";
+
+            var wasEnabled = GUI.enabled;
+            GUI.enabled = wasEnabled && canSwitch && !pending;
+            GUI.Button(HdrButtonRect, label);
+            GUI.enabled = wasEnabled;
+        }
+#endif
 
         void LateUpdate() {
             if (plateCamera != null) plateCamera.orthographicSize = 3.1f / Mathf.Min(plateCamera.aspect, 640f / 382f);
@@ -130,6 +181,47 @@ namespace LocalSkyLighting {
             lightingDirty = true;
         }
         #endregion
+
+#if !UNITY_WEBGL || UNITY_EDITOR
+        #region display output
+        bool CameraAllowsHdrOutput => plateCamera != null && plateCamera.allowHDR && plateCamera.targetDisplay == 0 &&
+            plateCamera.targetTexture == null && plateCamera.GetUniversalAdditionalCameraData().allowHDROutput &&
+            UniversalRenderPipeline.asset != null && UniversalRenderPipeline.asset.supportsHDR;
+
+        bool CanSwitchHdr(HDROutputSettings output) => CameraAllowsHdrOutput && output.available &&
+            (SystemInfo.hdrDisplaySupportFlags & HDRDisplaySupportFlags.RuntimeSwitchable) != 0;
+
+        static Rect HdrButtonRect => new Rect(12, Screen.height - 46, 172, 34);
+
+        void SetHdrTonemapping(bool enabled) {
+            if (!enabled) {
+                RestoreSdrTonemapping();
+                return;
+            }
+            if (postProcessing == null || hdrTonemapping != null) return;
+            hdrProfile = postProcessing.profile;
+            addedTonemapping = !hdrProfile.TryGet(out hdrTonemapping);
+            if (addedTonemapping) hdrTonemapping = hdrProfile.Add<Tonemapping>();
+            sdrTonemappingActive = hdrTonemapping.active;
+            sdrTonemappingMode = hdrTonemapping.mode.value;
+            sdrTonemappingOverride = hdrTonemapping.mode.overrideState;
+            hdrTonemapping.active = true;
+            hdrTonemapping.mode.Override(TonemappingMode.None);
+        }
+
+        void RestoreSdrTonemapping() {
+            if (hdrTonemapping == null) return;
+            if (addedTonemapping) hdrProfile.Remove<Tonemapping>();
+            else {
+                hdrTonemapping.active = sdrTonemappingActive;
+                hdrTonemapping.mode.value = sdrTonemappingMode;
+                hdrTonemapping.mode.overrideState = sdrTonemappingOverride;
+            }
+            hdrTonemapping = null;
+            hdrProfile = null;
+        }
+        #endregion
+#endif
 
         #region drawing
         static Vector2 ClampTilt(Vector2 value) => new Vector2(

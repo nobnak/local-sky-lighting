@@ -140,6 +140,19 @@ Unity.exe -batchmode -quit -projectPath C:/path/to/local-sky-lighting -buildTarg
 GitHub Pages serves the viewer from `docs/plate-light-study/`. Sensor access
 uses HTTPS and browsers that require a gesture show a permission button.
 
+### Native HDR output
+
+Use **Local Sky Lighting → Build Struck Plate for Windows** to build the
+current plate scene. The Player starts in SDR. Its lower-left button switches
+output when the display, graphics backend, and driver support runtime HDR
+switching. The same button is available in the Game view in Play mode when
+the Editor backend supports HDR output. On Windows, DirectX 11 supports HDR
+output in the Player, while DirectX 12 also supports it in the Editor.
+
+While the plate camera is outputting HDR, its runtime profile bypasses the
+SDR tone curve and retains Bloom and color grading. Returning to SDR restores
+the saved tone mapping. The Unity Web viewer uses SDR display output.
+
 ### Three.js HDR phone-tilt comparison
 
 GitHub Pages also serves `docs/plate-light-hdr/`. It preserves the earlier

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -10,6 +11,26 @@ using UnityEngine.Rendering.Universal;
 namespace LocalSkyLighting {
     public static class PlateLightStudyBuild {
         #region public interface
+        [MenuItem("Local Sky Lighting/Build Struck Plate for Windows")]
+        public static void BuildWindows() {
+            var path = Environment.GetEnvironmentVariable("PLATE_WINDOWS_BUILD_PATH") ??
+                "Builds/PlateLightStudy/PlateLightStudy.exe";
+            var allowHdr = PlayerSettings.allowHDRDisplaySupport;
+            var startHdr = PlayerSettings.useHDRDisplay;
+            try {
+                PlayerSettings.allowHDRDisplaySupport = true;
+                PlayerSettings.useHDRDisplay = false;
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+                var report = BuildPipeline.BuildPlayer(new[] { ScenePath }, path,
+                    BuildTarget.StandaloneWindows64, BuildOptions.None);
+                if (report.summary.result != BuildResult.Succeeded)
+                    throw new InvalidOperationException($"Plate Windows build: {report.summary.result}");
+            } finally {
+                PlayerSettings.useHDRDisplay = startHdr;
+                PlayerSettings.allowHDRDisplaySupport = allowHdr;
+            }
+        }
+
         public static void BuildWeb() {
             CreateScene();
 
