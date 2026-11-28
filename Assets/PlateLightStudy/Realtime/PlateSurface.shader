@@ -26,6 +26,7 @@ Shader "Local Sky Lighting/Struck Plate" {
             float _SlopeStrength, _RoughnessScale, _Anisotropy, _Exposure, _Rim, _MirrorShare;
             int _LightCount;
             float4 _Projection;
+            float _ProjectionFalloffScale;
             float4 _LightPosition[MAX_LIGHTS];
             float4 _LightRight[MAX_LIGHTS];
             float4 _LightUp[MAX_LIGHTS];
@@ -113,7 +114,10 @@ Shader "Local Sky Lighting/Struck Plate" {
                 float3 bodyF = lerp(bodyF0, 1, fresnel);
                 float3 strikeF = lerp(alloy, 1, pow(1 - saturate(dot(strikeNormal, view)), 5));
                 float radius = length(p.xy - _Projection.xy);
-                float mask = 1 - smoothstep(_Projection.z * 0.73, _Projection.z, radius);
+                float falloffScale = max(1, _ProjectionFalloffScale);
+                float mask = 1 - smoothstep(_Projection.z * 0.73, _Projection.z * falloffScale, radius);
+                // Preserve a weak tail while keeping the pinch presets distinct.
+                mask *= lerp(1, mask, saturate(falloffScale - 1));
                 float3 background = bodyColor * 0.022;
                 background += _Rim * lerp(float3(0.002, 0.0008, 0.0004), float3(0.017, 0.008, 0.003), fresnel);
                 if (mask <= 0) return float4(background * _Exposure, 1);

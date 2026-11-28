@@ -113,8 +113,9 @@ opening shot. Tilting the phone moves the mask and rotates the light rig.
 Turning the phone horizontally rotates the light rig around the plate normal
 in the opposite direction, keeping the plate and view fixed. Both motions use
 the phone pose captured at startup or by the reset button as their reference.
-Pinch chooses one of three projection diameters. Drag and arrow keys provide
-a manual tilt fallback.
+Pinch chooses one of three nominal projection diameters. During interactive
+viewing, the mask tapers to zero at twice the nominal radius, keeping the
+original full-strength core. Drag and arrow keys provide a manual tilt fallback.
 
 Append `&phase=4`, `&phase=9`, or `&phase=14` to hold the compact, broad,
 or dimmed lighting used in the comparison. `&phase=cycle` sweeps through

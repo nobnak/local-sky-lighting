@@ -162,6 +162,7 @@ namespace LocalSkyLighting {
             var gain = referencePhase < 0 ? 1 : Mathf.Lerp(1, .25f, Mathf.SmoothStep(0, 1, (phase - 9) / 5));
             var shift = rotation * new Vector3(0, 0, 1.3f);
             properties.SetVector(Projection, new Vector4(shift.x, shift.y, radius, gain));
+            properties.SetFloat(ProjectionFalloffScale, referencePhase < 0 ? 2f : 1f);
             plate.SetPropertyBlock(properties);
         }
 
@@ -192,6 +193,7 @@ namespace LocalSkyLighting {
         static readonly int BeamCones = Shader.PropertyToID("_BeamCones");
         static readonly int LightCount = Shader.PropertyToID("_LightCount");
         static readonly int Projection = Shader.PropertyToID("_Projection");
+        static readonly int ProjectionFalloffScale = Shader.PropertyToID("_ProjectionFalloffScale");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
         const int MaxEmitters = 9;
