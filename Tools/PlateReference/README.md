@@ -125,9 +125,9 @@ To regenerate the broken grooves, run `refine_strike_texture.py` with the
 original packed EXR, the scratch-direction PNG, and the destination EXR.
 The script uses OpenEXR, NumPy, SciPy, and Pillow and keeps the polish mask.
 
-The `Plate Post-processing` profile applies a small Bloom before Neutral tone
-mapping for the SDR canvas. Append `&bloom=0` to the viewer URL to compare the
-same lighting and material with Bloom disabled.
+The `Plate Post-processing` profile applies Bloom, shadows and highlights
+grading, and ACES tone mapping for the SDR canvas. Append `&bloom=0` to the
+viewer URL to compare the same lighting and material with Bloom disabled.
 
 Export the mesh, surface map and light rig from the original Blender scene,
 then build the Unity Web viewer:
