@@ -237,7 +237,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.9';
+const buildVersion = '2.10';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('plate-light-study.loader.js');

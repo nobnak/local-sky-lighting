@@ -31,40 +31,18 @@ namespace LocalSkyLighting {
         Quaternion neutralPose;
         bool hasPose;
         float screenAngle;
-        float orbitAngle;
-        bool cameraDirty;
-        bool hasCameraHome;
-        Vector3 cameraHomePosition;
-        Quaternion cameraHomeRotation;
+        float headingAngle;
 
         #region Unity lifecycle
         void OnEnable() {
             properties = new MaterialPropertyBlock();
             lightingDirty = true;
-            if (!Application.isPlaying || plateCamera == null) return;
-            cameraHomePosition = plateCamera.transform.position;
-            cameraHomeRotation = plateCamera.transform.rotation;
-            hasCameraHome = true;
-            cameraDirty = true;
-        }
-
-        void OnDisable() {
-            if (hasCameraHome && plateCamera != null)
-                plateCamera.transform.SetPositionAndRotation(cameraHomePosition, cameraHomeRotation);
-            hasCameraHome = false;
         }
 
         void OnValidate() => lightingDirty = true;
 
         void LateUpdate() {
             if (plateCamera != null) plateCamera.orthographicSize = 3.1f / Mathf.Min(plateCamera.aspect, 640f / 382f);
-            if (hasCameraHome && cameraDirty && plateCamera != null) {
-                var orbit = Quaternion.AngleAxis(orbitAngle, Vector3.forward);
-                var center = plate != null ? plate.transform.position : transform.position;
-                plateCamera.transform.SetPositionAndRotation(center + orbit * (cameraHomePosition - center),
-                    orbit * cameraHomeRotation);
-                cameraDirty = false;
-            }
             if (plate == null || (!lightingDirty && referencePhase != 0)) return;
             UpdateSpotlight();
             lightingDirty = false;
@@ -117,8 +95,7 @@ namespace LocalSkyLighting {
         public void ResetTilt() {
             if (hasPose) neutralPose = phonePose;
             tilt = Vector2.zero;
-            orbitAngle = 0;
-            cameraDirty = true;
+            headingAngle = 0;
             lightingDirty = true;
         }
 
@@ -138,13 +115,13 @@ namespace LocalSkyLighting {
             var relative = phonePose * Quaternion.Inverse(neutralPose);
             if (!input.headingUnavailable && relative.z * relative.z + relative.w * relative.w > .0001f) {
                 var heading = Mathf.DeltaAngle(0, 2 * Mathf.Atan2(relative.z, relative.w) * Mathf.Rad2Deg);
-                if (Mathf.Abs(Mathf.DeltaAngle(orbitAngle, heading)) > .001f) {
-                    orbitAngle = heading;
-                    cameraDirty = true;
+                if (Mathf.Abs(Mathf.DeltaAngle(headingAngle, heading)) > .001f) {
+                    headingAngle = heading;
+                    lightingDirty = true;
                 }
             }
 
-            var poseWithoutHeading = Quaternion.AngleAxis(-orbitAngle, Vector3.forward) * phonePose;
+            var poseWithoutHeading = Quaternion.AngleAxis(-headingAngle, Vector3.forward) * phonePose;
             var originalNormal = Quaternion.Inverse(poseWithoutHeading) * (neutralPose * Vector3.forward);
             var nextTilt = ClampTilt(new Vector2(Mathf.Atan2(originalNormal.x, originalNormal.z),
                 Mathf.Atan2(originalNormal.y, originalNormal.z)) * Mathf.Rad2Deg);
@@ -159,7 +136,8 @@ namespace LocalSkyLighting {
             Mathf.Clamp(value.x, -TiltLimit, TiltLimit), Mathf.Clamp(value.y, -TiltLimit, TiltLimit));
 
         void UpdateSpotlight() {
-            var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right);
+            var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right)
+                * Quaternion.AngleAxis(-headingAngle, Vector3.forward);
             var count = emitters == null || emitters.Length == 0 ? 1 : Mathf.Min(emitters.Length, MaxEmitters);
             for (int i = 0; i < count; i++) {
                 var emitter = emitters == null || emitters.Length == 0 ? spotlight : emitters[i];
