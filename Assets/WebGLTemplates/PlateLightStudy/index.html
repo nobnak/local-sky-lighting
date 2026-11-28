@@ -57,7 +57,7 @@ const sizeLabel = document.querySelector('#light-size');
 const sensor = window.isSecureContext ? window.DeviceOrientationEvent : undefined;
 const needsSensorGesture = typeof sensor?.requestPermission === 'function';
 const tiltLimit = 24;
-const beamAngles = [174, 144, 118];
+const projectionSizes = [100, 66, 26];
 const pinchStep = 1.25;
 const touches = new Map();
 let instance;
@@ -157,11 +157,12 @@ document.querySelector('#reset').addEventListener('click', () => {
   else setManual(0, 0);
 });
 function changeLightSize(step) {
-  const next = Math.max(0, Math.min(beamAngles.length - 1, lighting + step));
+  const next = Math.max(0, Math.min(projectionSizes.length - 1, lighting + step));
   if (next === lighting) return;
   lighting = next;
+  call('SetReferencePhase', -1);
   call('SetLighting', lighting);
-  sizeLabel.textContent = '照射角 ' + beamAngles[lighting] + '°';
+  sizeLabel.textContent = '照射サイズ ' + projectionSizes[lighting] + '%';
   sizeLabel.hidden = false;
   clearTimeout(sizeTimer);
   sizeTimer = setTimeout(() => { sizeLabel.hidden = true; }, 1000);
@@ -223,7 +224,7 @@ canvas.addEventListener('keydown', event => {
   setManual(manualX + delta[0], manualY + delta[1]);
 });
 const build = 'Build/';
-const buildVersion = '2.7';
+const buildVersion = '2.8';
 const versioned = file => build + file + '?v=' + buildVersion;
 const loader = document.createElement('script');
 loader.src = versioned('{{{ LOADER_FILENAME }}}');
@@ -247,7 +248,11 @@ loader.onload = () => {
   }, ratio => { statusText.textContent = '読み込み中… ' + Math.round(100*ratio) + '%'; })
     .then(result => {
       instance = result;
-      if (new URLSearchParams(location.search).get('bloom') === '0') call('SetBloom', 0);
+      const params = new URLSearchParams(location.search);
+      if (params.get('bloom') === '0') call('SetBloom', 0);
+      const phase = params.get('phase');
+      if (phase === 'cycle') call('SetReferencePhase', 0);
+      else if (['4', '9', '14'].includes(phase)) call('SetReferencePhase', Number(phase));
       controls.disabled = false;
       statusText.hidden = true;
       startMotion(needsSensorGesture);

@@ -105,18 +105,21 @@ bowl and rim meshes, and the editable `Amber bowl` material. Its surface map
 stores the normal slope in red and green and the polish mask in blue. The
 scratch direction map is estimated from the local surface structure and
 controls the orientation of the anisotropic lobe over the sharper mirror lobe.
-One white spotlight applies a soft projection mask over the plate.
-The polished strikes contain small, oriented facets that reflect its light
-into the camera only near mirror alignment. `Projected glint strength`
-controls that reflection alongside the compact rectangular highlight.
-`Gold metal color` colors the metal's reflection. Tilt rotates the spotlight relative to the first phone sample or
-the recenter pose. Pinch changes its opening angle between 174°, 144°, and 118°,
-preserving its on-axis intensity. The full-strength cone is always 72% of
-the opening angle, with a smooth taper over the remaining angle. At the centered
-pose, the beam is at least half strength across approximately 100%, 88%, and 51%
-of the projected plate. `Environment strength` sets a dim, broad fill that
-reveals the plate outside the spotlight. Drag and arrow keys provide
-a manual tilt fallback.
+The shader integrates the mirror and anisotropic reflection lobes over
+the rectangular emitters in the original light rig. A shared projection
+mask controls where these reflections appear and how bright they are.
+The view is fixed at 24 degrees from the plate normal to approximate the
+opening shot. Tilt moves the mask and rotates the rig. Pinch chooses
+one of three projection diameters, and drag and arrow keys provide a
+manual tilt fallback.
+
+Append `&phase=4`, `&phase=9`, or `&phase=14` to hold the compact, broad,
+or dimmed lighting used in the comparison. `&phase=cycle` sweeps through
+those states. These timings are a look study based on the reference video.
+
+To regenerate the broken grooves, run `refine_strike_texture.py` with the
+original packed EXR, the scratch-direction PNG, and the destination EXR.
+The script uses OpenEXR, NumPy, SciPy, and Pillow and keeps the polish mask.
 
 The `Plate Post-processing` profile applies a small Bloom before Neutral tone
 mapping for the SDR canvas. Append `&bloom=0` to the viewer URL to compare the

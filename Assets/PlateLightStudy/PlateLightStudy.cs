@@ -11,6 +11,16 @@ namespace LocalSkyLighting {
         [SerializeField] Camera plateCamera;
         [SerializeField] Volume postProcessing;
         [SerializeField] AreaLight spotlight;
+        [SerializeField] AreaLight[] emitters;
+
+        readonly Vector4[] positions = new Vector4[MaxEmitters];
+        readonly Vector4[] rights = new Vector4[MaxEmitters];
+        readonly Vector4[] ups = new Vector4[MaxEmitters];
+        readonly Vector4[] forwards = new Vector4[MaxEmitters];
+        readonly Vector4[] radiances = new Vector4[MaxEmitters];
+        readonly Vector4[] cones = new Vector4[MaxEmitters];
+        int referencePhase = -1;
+        float cycleStart;
 
         MaterialPropertyBlock properties;
         bool lightingDirty;
@@ -32,7 +42,7 @@ namespace LocalSkyLighting {
 
         void LateUpdate() {
             if (plateCamera != null) plateCamera.orthographicSize = 3.1f / Mathf.Min(plateCamera.aspect, 640f / 382f);
-            if (!lightingDirty || plate == null) return;
+            if (plate == null || (!lightingDirty && referencePhase != 0)) return;
             UpdateSpotlight();
             lightingDirty = false;
         }
@@ -41,7 +51,14 @@ namespace LocalSkyLighting {
         #region public interface
         [Preserve]
         public void SetLighting(int value) {
-            lighting = Mathf.Clamp(value, 0, SpotAngles.Length - 1);
+            lighting = Mathf.Clamp(value, 0, ProjectionRadii.Length - 1);
+            lightingDirty = true;
+        }
+
+        [Preserve]
+        public void SetReferencePhase(int value) {
+            referencePhase = value;
+            cycleStart = Time.unscaledTime;
             lightingDirty = true;
         }
 
@@ -97,16 +114,30 @@ namespace LocalSkyLighting {
 
         void UpdateSpotlight() {
             var rotation = Quaternion.AngleAxis(-tilt.x, Vector3.up) * Quaternion.AngleAxis(tilt.y, Vector3.right);
-            var outerHalfAngle = SpotAngles[lighting] * .5f * Mathf.Deg2Rad;
-            var innerHalfAngle = outerHalfAngle * InnerConeRatio;
-            var area = Mathf.Max(spotlight.width * spotlight.height, .0001f);
-            var radiance = spotlight.power / (Mathf.PI * area);
-            properties.SetVector(LightPosition, rotation * spotlight.position);
-            properties.SetVector(LightRight, WithW(rotation * spotlight.right, spotlight.width * .5f));
-            properties.SetVector(LightUp, WithW(rotation * spotlight.up, spotlight.height * .5f));
-            properties.SetVector(LightForward, rotation * spotlight.forward);
-            properties.SetVector(LightRadiance, WithW(spotlight.color * radiance, area));
-            properties.SetVector(BeamCone, new Vector4(innerHalfAngle, outerHalfAngle, Mathf.Cos(outerHalfAngle), 0));
+            var count = emitters == null || emitters.Length == 0 ? 1 : Mathf.Min(emitters.Length, MaxEmitters);
+            for (int i = 0; i < count; i++) {
+                var emitter = emitters == null || emitters.Length == 0 ? spotlight : emitters[i];
+                var area = Mathf.Max(emitter.width * emitter.height, .0001f);
+                positions[i] = rotation * emitter.position;
+                rights[i] = WithW(rotation * emitter.right, emitter.width * .5f);
+                ups[i] = WithW(rotation * emitter.up, emitter.height * .5f);
+                forwards[i] = rotation * emitter.forward;
+                radiances[i] = WithW(emitter.color * (emitter.power / (Mathf.PI * area)), area);
+                cones[i] = new Vector4(.559193f, .829038f, 0, 0);
+            }
+            properties.SetInt(LightCount, count);
+            properties.SetVectorArray(LightPosition, positions);
+            properties.SetVectorArray(LightRight, rights);
+            properties.SetVectorArray(LightUp, ups);
+            properties.SetVectorArray(LightForward, forwards);
+            properties.SetVectorArray(LightRadiance, radiances);
+            properties.SetVectorArray(BeamCones, cones);
+            var phase = referencePhase == 0 ? 4 + Mathf.PingPong(Time.unscaledTime - cycleStart, 10) : referencePhase;
+            var radius = referencePhase < 0 ? ProjectionRadii[lighting] :
+                Mathf.Lerp(.47f, ProjectionRadii[0], Mathf.SmoothStep(0, 1, (phase - 4) / 5));
+            var gain = referencePhase < 0 ? 1 : Mathf.Lerp(1, .25f, Mathf.SmoothStep(0, 1, (phase - 9) / 5));
+            var shift = rotation * new Vector3(0, 0, 1.3f);
+            properties.SetVector(Projection, new Vector4(shift.x, shift.y, radius, gain));
             plate.SetPropertyBlock(properties);
         }
 
@@ -131,11 +162,13 @@ namespace LocalSkyLighting {
         static readonly int LightRight = Shader.PropertyToID("_LightRight");
         static readonly int LightUp = Shader.PropertyToID("_LightUp");
         static readonly int LightForward = Shader.PropertyToID("_LightForward");
-        static readonly int BeamCone = Shader.PropertyToID("_BeamCone");
+        static readonly int BeamCones = Shader.PropertyToID("_BeamCones");
+        static readonly int LightCount = Shader.PropertyToID("_LightCount");
+        static readonly int Projection = Shader.PropertyToID("_Projection");
         static readonly int LightRadiance = Shader.PropertyToID("_LightRadiance");
         const float TiltLimit = 24f;
-        const float InnerConeRatio = .72f;
-        static readonly float[] SpotAngles = { 174f, 144f, 118f };
+        const int MaxEmitters = 9;
+        static readonly float[] ProjectionRadii = { 1.78f, 1.18f, .47f };
         #endregion
     }
 }

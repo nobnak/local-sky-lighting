@@ -93,7 +93,8 @@ namespace LocalSkyLighting {
             plate.sharedMaterials = new[] { bowl, rim };
 
             var camera = new GameObject("Camera").AddComponent<Camera>();
-            camera.transform.position = new Vector3(0, 0, -7);
+            var viewAngle = Quaternion.Euler(-24, 0, 0);
+            camera.transform.SetPositionAndRotation(viewAngle * new Vector3(0, 0, -7), viewAngle);
             camera.orthographic = true;
             camera.orthographicSize = 1.85f;
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -112,6 +113,23 @@ namespace LocalSkyLighting {
             spotlight.name = "White spotlight";
             spotlight.color = Vector3.one;
             serialized.FindProperty("spotlight").boxedValue = spotlight;
+            var emitters = serialized.FindProperty("emitters");
+            emitters.arraySize = data.lights.Length;
+            var reflectionAngle = Quaternion.Inverse(viewAngle);
+            for (int i = 0; i < data.lights.Length; i++) {
+                var emitter = data.lights[i];
+                if (emitter.name == "Warm field") emitter.power *= 1.65f;
+                if (emitter.name == "Gold streak at lower center") {
+                    emitter.position.x *= .35f;
+                    emitter.position.y *= .45f;
+                }
+                emitter.color = Vector3.Lerp(emitter.color, new Vector3(1, .79f, .24f), .58f);
+                emitter.position = reflectionAngle * emitter.position;
+                emitter.right = reflectionAngle * emitter.right;
+                emitter.up = reflectionAngle * emitter.up;
+                emitter.forward = reflectionAngle * emitter.forward;
+                emitters.GetArrayElementAtIndex(i).boxedValue = emitter;
+            }
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(mesh);
             AssetDatabase.SaveAssets();
